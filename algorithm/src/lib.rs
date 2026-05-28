@@ -12,8 +12,8 @@ mod validate;
 
 pub use {
     defs::{
-        MAX_PEOPLE, N_DAYS, N_WEEKDAYS, N_WEEKS, NULL_ID, Person, ProblemInput, ProblemInputError,
-        ProblemOverrides, Rate, RateError,
+        MAX_PEOPLE, N_DAYS, N_WEEKDAYS, N_WEEKS, NULL_ID, Person, ProblemConfig, ProblemInput,
+        ProblemInputError, ProblemOverrides, Rate, RateError,
     },
     fitness::{ScheduleEvaluator, ScheduleFitness},
     holiday::{Holiday, geneva_bank_holidays},
@@ -21,7 +21,7 @@ pub use {
     solver::{
         Solver, SolverError, SolverSolution,
         context::Context,
-        defs::SolverParameters,
+        defs::{PhaseParameters, SolverParameters},
         types::{SolverProgress, SolverStage},
     },
     statistics::{FinalStatistics, ScheduleStatistics, WeeklyBreakdown, WeeklyHeatmap},

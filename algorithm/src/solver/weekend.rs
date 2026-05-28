@@ -2,7 +2,6 @@ use std::array;
 
 use chrono::Weekday;
 use rand::{Rng, RngExt, seq::SliceRandom};
-use serde::{Deserialize, Serialize};
 use strum::EnumCount;
 
 use crate::{
@@ -11,6 +10,7 @@ use crate::{
     fitness::ScheduleEvaluator,
     solver::{
         context::{Context, PlacementContext, SingleAssignment},
+        defs::PhaseParameters,
         types::WeeklyRoleMask,
     },
     types::{PersonIdx, Role, Slot, WeekIdx},
@@ -20,14 +20,8 @@ use crate::{
 pub struct WeekendSolver<'a> {
     context: &'a Context,
     distribution: Distribution,
-    parameters: &'a WeekendParameters,
+    parameters: &'a PhaseParameters,
     state: WeekendState,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct WeekendParameters {
-    pub number_permutations: u64,
-    pub max_resolve_attempts: u64,
 }
 
 struct WeekendState {
@@ -49,7 +43,7 @@ impl Default for WeekendState {
 }
 
 impl WeekendSolver<'_> {
-    pub fn new<'a>(parameters: &'a WeekendParameters, context: &'a Context) -> WeekendSolver<'a> {
+    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> WeekendSolver<'a> {
         WeekendSolver {
             context,
             distribution: WeekendRoleDistribution(context).proportionate_to_rate(),
@@ -436,9 +430,7 @@ mod tests {
     fn test_variable_people_count() {
         use crate::{
             ExecutionController, ScheduleValidator, Solver, SolverParameters, SolverProgress,
-            solver::{
-                friday::FridayParameters, weekday::WeekdayParameters, weekend::WeekendParameters,
-            },
+            solver::defs::PhaseParameters,
         };
 
         for n_people in [8_usize, 15] {
@@ -466,20 +458,18 @@ mod tests {
 
             // Minimal parameters for smoke test: one permutation per stage
             let params = SolverParameters {
-                weekend_parameters: WeekendParameters {
+                weekend: PhaseParameters {
                     number_permutations: 1,
                     max_resolve_attempts: 50,
                 },
-                friday_parameters: FridayParameters {
+                friday: PhaseParameters {
                     number_permutations: 1,
                     max_resolve_attempts: 50,
                 },
-                weekday_parameters: WeekdayParameters {
+                weekday: PhaseParameters {
                     number_permutations: 1,
                     max_resolve_attempts: 10,
                 },
-                max_solutions: 1,
-                skip_last_shifts: 3,
             };
 
             let mut solver = Solver::new(&problem, &Weights::STANDARD);

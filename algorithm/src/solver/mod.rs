@@ -69,7 +69,7 @@ impl Solver<'_> {
         let threads = threads.unwrap_or(num_cpus::get() as u16);
         let extra_threads = threads.saturating_sub(1) as usize;
 
-        let root_counter = AtomicU64::new(parameters.weekend_parameters.number_permutations);
+        let root_counter = AtomicU64::new(parameters.weekend.number_permutations);
 
         let worker = Worker {
             parameters: &parameters,
@@ -137,14 +137,11 @@ impl Worker<'_> {
     fn spin(&self) -> Result<(f32, Solution), SolverError> {
         let rng = &mut AppRng::try_from_rng(&mut SysRng).unwrap();
 
-        let mut friday_solver =
-            FridaySolver::new(&self.parameters.friday_parameters, &self.solver.context);
+        let mut friday_solver = FridaySolver::new(&self.parameters.friday, &self.solver.context);
 
-        let mut weekend_solver =
-            WeekendSolver::new(&self.parameters.weekend_parameters, &self.solver.context);
+        let mut weekend_solver = WeekendSolver::new(&self.parameters.weekend, &self.solver.context);
 
-        let mut weekday_solver =
-            WeekdaySolver::new(&self.parameters.weekday_parameters, &self.solver.context);
+        let mut weekday_solver = WeekdaySolver::new(&self.parameters.weekday, &self.solver.context);
 
         let mut best_solution = None;
 

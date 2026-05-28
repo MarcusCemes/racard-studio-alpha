@@ -1,0 +1,504 @@
+<script lang="ts">
+    import { AlertTriangle, ChevronDown, ChevronRight } from "@lucide/svelte";
+    import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
+    import { LineChart } from "layerchart";
+
+    import { app } from "$lib/app.svelte";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+    import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+    import { type ChartConfig, ChartContainer } from "$lib/components/ui/chart/index.js";
+    import { Input } from "$lib/components/ui/input/index.js";
+    import { Separator } from "$lib/components/ui/separator/index.js";
+    import {
+        DEFAULT_WEEKDAY_HOURS,
+        NULL_ID,
+        N_WEEKDAYS,
+        N_WEEKS,
+        PERSON_COLORS,
+        Role,
+    } from "$lib/defs.js";
+    import { cn } from "$lib/utils.js";
+
+    let openSections: Record<string, boolean> = $state({
+        problem: true,
+        solver: false,
+        refiner: false,
+    });
+
+    function toggleSection(key: string) {
+        openSections[key] = !openSections[key];
+    }
+
+    let dayIndex = $derived(app.selectedDayOfWeek);
+    let weekIndex = $derived(app.selectedWeek);
+    let selectedPerson = $derived(app.selectedPerson);
+
+    // Derive day data from selection
+    const dayData = $derived.by(() => {
+        if (!dayIndex || !weekIndex) return null;
+
+        const baseDate = startOfISOWeek(parseISO(app.startDate));
+        const monday = addWeeks(baseDate, weekIndex);
+        const date = addDays(monday, dayIndex);
+        const daySlot = weekIndex * N_WEEKDAYS + dayIndex;
+
+        const leadSlot = app.slots[daySlot] >> 4;
+        const suppSlot = app.slots[daySlot] & 0xf;
+
+        return {
+            date,
+            weekNumber: weekIndex + 1,
+            lead: leadSlot !== NULL_ID ? leadSlot : null,
+            support: suppSlot !== NULL_ID ? suppSlot : null,
+        };
+    });
+
+    // Derive employee stats from slots
+    const empStats = $derived.by(() => {
+        const stats = app.people.map(() => ({
+            idx: 0,
+            totalShifts: 0,
+            leadShifts: 0,
+            supportShifts: 0,
+            violations: 0,
+        }));
+
+        for (let d = 0; d < N_WEEKS * N_WEEKDAYS; d++) {
+            const lead = app.slots[d] >> 4;
+            const supp = app.slots[d] & 0xf;
+
+            if (lead < stats.length) {
+                stats[lead].totalShifts++;
+                stats[lead].leadShifts++;
+            }
+
+            if (supp < stats.length) {
+                stats[supp].totalShifts++;
+                stats[supp].supportShifts++;
+            }
+        }
+
+        for (const c of app.conflicts) {
+            if ("ConsecutiveDay" in c) stats[c.ConsecutiveDay[0]].violations++;
+            if ("Holiday" in c) stats[c.Holiday[0]].violations++;
+            if ("Role" in c) stats[c.Role[0]].violations++;
+            if ("WorkCount" in c) stats[c.WorkCount[0]].violations++;
+        }
+
+        return stats;
+    });
+
+    const PERSON_COLOR_HEX = [
+        "#3b82f6",
+        "#22c55e",
+        "#ef4444",
+        "#eab308",
+        "#a855f7",
+        "#ec4899",
+        "#6366f1",
+        "#14b8a6",
+        "#60a5fa",
+        "#4ade80",
+        "#f87171",
+        "#facc15",
+        "#c084fc",
+        "#f472b6",
+        "#818cf8",
+    ];
+
+    const weeklyHours = $derived.by(() => {
+        const idx = app.selectedPersonIndex;
+        if (idx === undefined) return [];
+
+        const data: { week: number; hours: number }[] = [];
+        for (let w = 0; w < N_WEEKS; w++) {
+            let totalHours = 0;
+            for (let d = 0; d < N_WEEKDAYS; d++) {
+                const slot = app.slots[w * N_WEEKDAYS + d];
+                const lead = slot >> 4;
+                const supp = slot & 0xf;
+
+                if (lead === idx) totalHours += DEFAULT_WEEKDAY_HOURS[d][0];
+                if (supp === idx) totalHours += DEFAULT_WEEKDAY_HOURS[d][1];
+            }
+            data.push({ week: w + 1, hours: totalHours });
+        }
+        return data;
+    });
+
+    const weeklyChartConfig = $derived.by(() => {
+        const idx = app.selectedPersonIndex;
+        const config: ChartConfig = {
+            hours: {
+                label: "Hours",
+                color:
+                    idx !== undefined ? PERSON_COLOR_HEX[idx % PERSON_COLOR_HEX.length] : "#3b82f6",
+            },
+        };
+        return config;
+    });
+
+    const panelState = $derived(dayIndex ? "day" : selectedPerson ? "employee" : "idle");
+
+    function onDeleteEmployee() {
+        const index = app.selectedPersonIndex;
+        if (index === undefined) return;
+
+        app.people.splice(index, 1);
+        app.selectedPersonIndex = undefined;
+    }
+</script>
+
+<aside class="w-72 shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
+    <!-- Header -->
+    <div class="px-3.5 py-3 border-b border-border shrink-0">
+        {#if panelState === "idle"}
+            <span class="text-[13px] font-semibold">Configuration</span>
+        {:else if panelState === "day" && dayData}
+            <div class="flex flex-col gap-0.5">
+                <span class="text-[13px] font-semibold">
+                    {dayData.date.toLocaleDateString("en-GB", { weekday: "long" })}
+                </span>
+                <span class="text-[11.5px] text-muted-foreground">
+                    {dayData.date.toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                    })}
+                </span>
+            </div>
+        {:else if panelState === "employee" && selectedPerson}
+            {@const [{ name, rate }, _, swatch] = selectedPerson}
+
+            <div class="flex items-center gap-2.5">
+                <span class="w-1.5 h-9 rounded-[3px] shrink-0" style="background:{swatch}"></span>
+                <div>
+                    <span class="text-[13px] font-semibold block">{name}</span>
+                    <span class="text-[11px] text-muted-foreground">{rate}%</span>
+                </div>
+            </div>
+        {/if}
+    </div>
+
+    <div class="flex-1 overflow-y-auto py-2.5">
+        <!-- ── IDLE STATE ── -->
+        {#if panelState === "idle"}
+            <!-- Problem -->
+            <div class="border-b border-border pb-1 mb-1">
+                <button
+                    class="flex items-center gap-1.5 w-full px-3.5 py-2 bg-transparent border-none text-[10px] font-semibold uppercase tracking-[0.02em] cursor-pointer text-left hover:bg-accent"
+                    onclick={() => toggleSection("problem")}
+                >
+                    {#if openSections.problem}<ChevronDown size={13} />{:else}<ChevronRight
+                            size={13}
+                        />{/if}
+                    <span>Problem</span>
+                </button>
+                {#if openSections.problem}
+                    <div class="px-3.5 py-1 pb-2 flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="cfg-start"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Start date</label
+                            >
+                            <Input
+                                id="cfg-start"
+                                type="date"
+                                value={app.startDate}
+                                class="flex-1! h-7! text-[11.5px]! font-mono!"
+                            />
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <label class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Employees</label
+                            >
+                            <span class="text-[11.5px] font-mono"
+                                >{app.people.length} configured</span
+                            >
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <!-- Solver -->
+            <div class="border-b border-border pb-1 mb-1">
+                <button
+                    class="flex items-center gap-1.5 w-full px-3.5 py-2 bg-transparent border-none text-[10px] font-semibold uppercase tracking-[0.02em] cursor-pointer text-left hover:bg-accent"
+                    onclick={() => toggleSection("solver")}
+                >
+                    {#if openSections.solver}<ChevronDown size={13} />{:else}<ChevronRight
+                            size={13}
+                        />{/if}
+                    <span>Solver</span>
+                </button>
+                {#if openSections.solver}
+                    <div class="px-3.5 py-1 pb-2 flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="slv-wknd"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Weekend passes</label
+                            >
+                            <Input
+                                id="slv-wknd"
+                                type="number"
+                                value="500"
+                                class="flex-1! h-7! text-[11.5px]! font-mono!"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="slv-fri"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Friday passes</label
+                            >
+                            <Input
+                                id="slv-fri"
+                                type="number"
+                                value="200"
+                                class="flex-1! h-7! text-[11.5px]! font-mono!"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="slv-hours"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Hours weight</label
+                            >
+                            <input
+                                id="slv-hours"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value="0.6"
+                                class="flex-1 accent-blue-500"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="slv-spread"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Spread weight</label
+                            >
+                            <input
+                                id="slv-spread"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value="0.4"
+                                class="flex-1 accent-blue-500"
+                            />
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <!-- Refiner -->
+            <div class="border-b border-border pb-1 mb-1">
+                <button
+                    class="flex items-center gap-1.5 w-full px-3.5 py-2 bg-transparent border-none text-[10px] font-semibold uppercase tracking-[0.02em] cursor-pointer text-left hover:bg-accent"
+                    onclick={() => toggleSection("refiner")}
+                >
+                    {#if openSections.refiner}<ChevronDown size={13} />{:else}<ChevronRight
+                            size={13}
+                        />{/if}
+                    <span>Refiner</span>
+                </button>
+                {#if openSections.refiner}
+                    <div class="px-3.5 py-1 pb-2 flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="rfn-time"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Time budget</label
+                            >
+                            <input
+                                id="rfn-time"
+                                type="range"
+                                min="1"
+                                max="60"
+                                value="30"
+                                class="flex-1 accent-blue-500"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="rfn-temp"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Temperature</label
+                            >
+                            <input
+                                id="rfn-temp"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value="0.8"
+                                class="flex-1 accent-blue-500"
+                            />
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label
+                                for="rfn-consec"
+                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                >Consecutive weight</label
+                            >
+                            <input
+                                id="rfn-consec"
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value="0.5"
+                                class="flex-1 accent-blue-500"
+                            />
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <!-- Checkpoints -->
+            <div>
+                <div
+                    class="px-3.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+                >
+                    Checkpoints
+                </div>
+                <div class="px-3.5 pb-2 flex flex-col gap-1">
+                    {#if app.checkpoints.length === 0}
+                        <span class="text-[11.5px] text-muted-foreground italic"
+                            >No checkpoints yet</span
+                        >
+                    {:else}
+                        {#each app.checkpoints as cp}
+                            <div
+                                class="flex items-center gap-1.5 text-[11.5px] px-2 py-1 rounded-md bg-background border border-border"
+                            >
+                                <span class="flex-1 font-medium truncate">{cp.name}</span>
+                                <span class="font-mono text-[10.5px] text-muted-foreground">
+                                    {new Date(cp.timestamp).toLocaleTimeString("en-GB", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}
+                                </span>
+
+                                <Button
+                                    class="text-blue-500 h-auto! p-0! text-[10.5px]!"
+                                    onclick={() => app.restoreCheckpoint(cp)}
+                                    variant="link"
+                                    size="xs">Restore</Button
+                                >
+                            </div>
+                        {/each}
+                    {/if}
+                </div>
+            </div>
+
+            <!-- ── DAY STATE ── -->
+        {:else if panelState === "day" && dayData}
+            <div class="mx-3.5 mb-3 rounded-lg border border-border overflow-hidden bg-background">
+                <div class="flex items-center gap-1.5 px-3 py-2.5 min-h-[42px]">
+                    <span
+                        class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-[44px] shrink-0"
+                        >Lead</span
+                    >
+                    {#if dayData.lead !== null}
+                        {@const person = app.people[dayData.lead]}
+                        {@const swatch = PERSON_COLORS[dayData.lead % PERSON_COLORS.length][1]}
+                        <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"
+                        ></span>
+                        <span class="flex-1 text-[12.5px] font-medium truncate">{person.name}</span>
+                    {:else}
+                        <span class="text-xs text-muted-foreground italic">Unassigned</span>
+                    {/if}
+                </div>
+                <Separator />
+                <div class="flex items-center gap-1.5 px-3 py-2.5 min-h-[42px]">
+                    <span
+                        class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-[44px] shrink-0"
+                        >Support</span
+                    >
+                    {#if dayData.support !== null}
+                        {@const person = app.people[dayData.support]}
+                        {@const swatch = PERSON_COLORS[dayData.support % PERSON_COLORS.length][1]}
+                        <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"
+                        ></span>
+                        <span class="flex-1 text-[12.5px] font-medium truncate">{person.name}</span>
+                    {:else}
+                        <span class="text-xs text-muted-foreground italic">Unassigned</span>
+                    {/if}
+                </div>
+            </div>
+
+            <div class="mx-3.5 mb-2.5 text-[11.5px] text-muted-foreground italic">
+                No violations
+            </div>
+
+            <div class="mx-3.5 pt-2.5 border-t border-border">
+                <span
+                    class="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground"
+                    >Week {dayData.weekNumber}</span
+                >
+            </div>
+
+            <!-- ── EMPLOYEE STATE ── -->
+        {:else if panelState === "employee" && selectedPerson}
+            {@const [, , swatch] = selectedPerson}
+            {@const s = empStats[app.selectedPersonIndex!]}
+
+            <div
+                class="grid grid-cols-2 gap-px mx-3.5 mb-3.5 rounded-lg overflow-hidden border border-border bg-border"
+            >
+                {#each [["Total shifts", `${s.totalShifts}`], ["Lead shifts", `${s.leadShifts}`], ["Support shifts", `${s.supportShifts}`], ["Violations", `${s.violations}`]] as [label, val]}
+                    <div
+                        class={cn(
+                            "flex flex-col gap-0.5 px-2.5 py-2 bg-background",
+                            label === "Violations" && s.violations > 0 && "col-span-2",
+                        )}
+                    >
+                        <span
+                            class="text-[9.5px] uppercase tracking-wider text-muted-foreground font-semibold"
+                            >{label}</span
+                        >
+                        <span
+                            class={cn(
+                                "text-sm font-semibold font-mono",
+                                label === "Violations" && s.violations > 0 && "text-red-500",
+                            )}
+                        >
+                            {val}
+                        </span>
+                    </div>
+                {/each}
+            </div>
+
+            <!-- Weekly hours chart -->
+            <div class="mx-3.5">
+                <span
+                    class="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1.5 block"
+                    >Weekly hours</span
+                >
+                <ChartContainer
+                    config={weeklyChartConfig}
+                    class="h-10! aspect-auto! justify-start!"
+                >
+                    {#if weeklyHours.length > 1}
+                        <LineChart
+                            data={weeklyHours}
+                            x="week"
+                            y="hours"
+                            padding={{ top: 2, right: 2, bottom: 8, left: 2 }}
+                            yDomain={[0, null]}
+                            series={[{ key: "hours", color: "var(--color-hours)" }]}
+                        />
+                    {/if}
+                </ChartContainer>
+                <div class="h-px bg-border mt-0.5"></div>
+            </div>
+        {/if}
+    </div>
+</aside>

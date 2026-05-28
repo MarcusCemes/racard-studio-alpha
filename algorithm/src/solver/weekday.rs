@@ -1,17 +1,17 @@
+use rand::{Rng, RngExt};
 use std::{
     array,
     ops::{Index, IndexMut},
 };
 
 use chrono::Weekday;
-use rand::{Rng, RngExt};
-use serde::{Deserialize, Serialize};
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
 
 use crate::{
     defs::MAX_PEOPLE,
     solver::{
         context::{Context, ContextPerson, MultiAssignment, SingleAssignment},
+        defs::PhaseParameters,
         types::{PersonMask, WeeklyRoleMask},
     },
     types::{PersonIdx, Role, Slot, WeekIdx},
@@ -20,15 +20,9 @@ use crate::{
 
 pub struct WeekdaySolver<'a> {
     context: &'a Context,
-    parameters: &'a WeekdayParameters,
+    parameters: &'a PhaseParameters,
     sampler: PersonSampler,
     state: WeekdayState,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct WeekdayParameters {
-    pub number_permutations: u64,
-    pub max_resolve_attempts: u64,
 }
 
 #[derive(Default)]
@@ -78,7 +72,7 @@ impl TryFrom<Weekday> for FirstWeekdays {
 }
 
 impl WeekdaySolver<'_> {
-    pub fn new<'a>(parameters: &'a WeekdayParameters, context: &'a Context) -> WeekdaySolver<'a> {
+    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> WeekdaySolver<'a> {
         WeekdaySolver {
             context,
             parameters,

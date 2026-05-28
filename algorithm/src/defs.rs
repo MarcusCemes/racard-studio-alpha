@@ -31,7 +31,7 @@ pub struct Person {
 
 /* -- ProblemInput -- */
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct ProblemInput {
     pub overrides: ProblemOverrides,
     pub people: Vec<Person>,
@@ -85,6 +85,36 @@ impl ProblemInput {
             skip_last_shifts,
             weekday_hours,
         })
+    }
+}
+
+/* -- ProblemConfig -- */
+
+/// Serializable problem configuration that can be persisted to disk.
+///
+/// This is the serialization boundary between the frontend and the
+/// algorithm layer. From a `ProblemConfig` you can construct a validated
+/// `ProblemInput` and derive statistics, validations, etc.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProblemConfig {
+    pub start_date: NaiveDate,
+    pub people: Vec<Person>,
+    pub weekday_hours: [[f32; Role::COUNT]; N_WEEKDAYS],
+    pub overrides: ProblemOverrides,
+    pub skip_last_shifts: u8,
+}
+
+impl TryFrom<ProblemConfig> for ProblemInput {
+    type Error = ProblemInputError;
+
+    fn try_from(config: ProblemConfig) -> Result<Self, Self::Error> {
+        ProblemInput::try_new(
+            config.start_date,
+            config.people,
+            config.overrides,
+            config.weekday_hours,
+            config.skip_last_shifts,
+        )
     }
 }
 

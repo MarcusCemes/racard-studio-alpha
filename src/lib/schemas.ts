@@ -1,0 +1,227 @@
+import { z } from "zod";
+
+import {
+    DEFAULT_BANK_HOLIDAY_HOURS,
+    DEFAULT_WEEKDAY_HOURS,
+    MAX_PEOPLE,
+    N_DAYS,
+    N_WEEKS,
+} from "$lib/defs.js";
+
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const slotsSchema = z.array(z.number()).length(N_DAYS);
+
+export type Slots = number[];
+
+/* === Core Types === */
+
+export type Person = z.infer<typeof personSchema>;
+const personSchema = z.object({
+    name: z.string(),
+    holidays: z.array(z.number()),
+    rate: z.number().int().min(0).max(100),
+});
+
+export type BankHoliday = z.infer<typeof bankHolidaySchema>;
+export const bankHolidaySchema = z.object({
+    date: dateSchema,
+    name: z.string(),
+    enabled: z.boolean(),
+    lead_hours: z.number().nullable(),
+    support_hours: z.number().nullable(),
+});
+
+export type CustomOverride = z.infer<typeof customOverrideSchema>;
+export const customOverrideSchema = z.object({
+    date: dateSchema,
+    role: z.enum(["Lead", "Support"]),
+    hours: z.number(),
+});
+
+export type ProblemOverrides = z.infer<typeof problemOverridesSchema>;
+export const problemOverridesSchema = z.object({
+    lead: z.array(z.tuple([dateSchema, z.number()])),
+    support: z.array(z.tuple([dateSchema, z.number()])),
+});
+
+export type ProblemConfig = z.infer<typeof problemConfigSchema>;
+export const problemConfigSchema = z.object({
+    start_date: dateSchema,
+    people: z.array(personSchema),
+    weekday_hours: z.array(z.tuple([z.number(), z.number()])).length(7),
+    overrides: problemOverridesSchema,
+    skip_last_shifts: z.number().int().min(0),
+});
+
+export type ProblemParameters = z.infer<typeof parametersSchema>;
+export const parametersSchema = z.object({
+    weekday_hours: z
+        .array(z.tuple([z.number(), z.number()]))
+        .length(7)
+        .default(DEFAULT_WEEKDAY_HOURS),
+    bank_holiday_default_hours: z
+        .array(z.tuple([z.number(), z.number()]))
+        .length(7)
+        .default(DEFAULT_BANK_HOLIDAY_HOURS),
+    bank_holidays: z.array(bankHolidaySchema).default([]),
+    custom_overrides: z.array(customOverrideSchema).default([]),
+    people: z.array(personSchema).min(1).max(MAX_PEOPLE),
+    start_date: dateSchema,
+});
+
+export type Solution = z.infer<typeof solutionSchema>;
+export const solutionSchema = slotsSchema;
+
+export type Schedule = z.infer<typeof scheduleSchema>;
+export const scheduleSchema = z.object({
+    parameters: parametersSchema,
+    slots: slotsSchema,
+});
+
+/* === Parameters === */
+
+export type PhaseParameters = z.infer<typeof phaseParametersSchema>;
+export const phaseParametersSchema = z.object({
+    number_permutations: z.number().int().min(1),
+    max_resolve_attempts: z.number().int().min(1),
+});
+
+export type SolverParameters = z.infer<typeof solverParametersSchema>;
+export const solverParametersSchema = z.object({
+    weekend: phaseParametersSchema,
+    friday: phaseParametersSchema,
+    weekday: phaseParametersSchema,
+});
+
+export type RefinementParameters = z.infer<typeof refinementParametersSchema>;
+export const refinementParametersSchema = z.object({
+    cooling_rate: z.number().gt(0).lt(1),
+    initial_temperature: z.number().gt(0),
+    num_iterations: z.number().int().min(0),
+    polish: z.boolean(),
+    searches: z.number().int().min(1),
+});
+
+export type FitnessWeights = z.infer<typeof fitnessWeightsSchema>;
+export const fitnessWeightsSchema = z.object({
+    annual_hours: z.number().min(0),
+    consecutive_days: z.number().min(0),
+    consecutive_weekends: z.number().min(0),
+    weekend_alternation: z.number().min(0),
+    weekend_regularity: z.number().min(0),
+    weekly_hours: z.number().min(0),
+    blank_weeks: z.number().min(0),
+});
+
+/* === Progress & Solution === */
+
+export type StageProgress = z.infer<typeof stageProgressSchema>;
+export const stageProgressSchema = z.object({
+    accepted: z.number().int().min(0),
+    rejected: z.number().int().min(0),
+});
+
+export type SolverProgress = z.infer<typeof solverProgressSchema>;
+export const solverProgressSchema = z.tuple([
+    stageProgressSchema,
+    stageProgressSchema,
+    stageProgressSchema,
+]);
+
+/* === RefinerProgress === */
+
+export type RefinerProgress = z.infer<typeof refinerProgressSchema>;
+export const refinerProgressSchema = z.object({
+    accepted: z.number().int().min(0),
+    rejected: z.number().int().min(0),
+    current_fitness: z.number(),
+    best_fitness: z.number(),
+    temperature: z.number(),
+    iteration: z.number().int().min(0),
+    search: z.number().int().min(0),
+});
+
+export type SolverSolution = z.infer<typeof solverSolutionSchema>;
+export const solverSolutionSchema = z.object({
+    fitness: z.number(),
+    progress: solverProgressSchema,
+    solution: slotsSchema,
+});
+
+/* === Errors === */
+
+export type TaskInputError = z.infer<typeof taskInputErrorSchema>;
+export const taskInputErrorSchema = z.enum(["StartDate", "PeopleCount"]);
+
+export type SolverError = z.infer<typeof solverErrorSchema>;
+export const solverErrorSchema = z.union([
+    z.literal("Interrupted"),
+    z.object({ Task: z.union([z.literal("StartDate"), z.literal("PeopleCount")]) }),
+]);
+
+/* === Statistics === */
+
+export type WeeklyBreakdown = z.infer<typeof weeklyBreakdownSchema>;
+export const weeklyBreakdownSchema = z.object({
+    hours_by_role: z
+        .array(z.array(z.array(z.number()).length(N_WEEKS)).length(2))
+        .length(MAX_PEOPLE),
+    cumulative_hours: z.array(z.array(z.number()).length(N_WEEKS)).length(MAX_PEOPLE),
+});
+
+export type WeeklyHeatmap = z.infer<typeof weeklyHeatmapSchema>;
+export const weeklyHeatmapSchema = z.object({
+    slots_per_week: z.array(z.array(z.number()).length(N_WEEKS)).length(MAX_PEOPLE),
+});
+
+export type FinalStatistics = z.infer<typeof finalStatisticsSchema>;
+export const finalStatisticsSchema = z.object({
+    total_hours_worked: z.array(z.number()).length(MAX_PEOPLE),
+    expected_hours: z.array(z.number()).length(MAX_PEOPLE),
+    total_available_hours: z.number(),
+    theoretical_hours: z.number(),
+    lead_fridays: z.array(z.number()).length(MAX_PEOPLE),
+    support_fridays: z.array(z.number()).length(MAX_PEOPLE),
+    long_weekends: z.array(z.number()).length(MAX_PEOPLE),
+    short_weekends: z.array(z.number()).length(MAX_PEOPLE),
+});
+
+export type ScheduleFitness = z.infer<typeof scheduleFitnessSchema>;
+export const scheduleFitnessSchema = z.object({
+    annual_hours: z.number(),
+    consecutive_days: z.number(),
+    consecutive_weekends: z.number(),
+    weekend_alternation: z.number(),
+    weekend_regularity: z.number(),
+    weekly_hours: z.number(),
+    blank_weeks: z.number(),
+});
+
+export type ScheduleStatistics = z.infer<typeof scheduleStatisticsSchema>;
+export const scheduleStatisticsSchema = z.object({
+    weekly_breakdown: weeklyBreakdownSchema,
+    weekly_heatmap: weeklyHeatmapSchema,
+    final_statistics: finalStatisticsSchema,
+    fitness: scheduleFitnessSchema,
+});
+
+/* === Enums === */
+
+export type Holiday = z.infer<typeof holidaySchema>;
+export const holidaySchema = z.enum([
+    "NearYear",
+    "EasterFriday",
+    "EasterMonday",
+    "AscensionThursday",
+    "WhitMonday",
+    "NationalDay",
+    "JeuneGenevois",
+    "Christmas",
+    "PublicRestoration",
+]);
+
+export type Conflict =
+    | { ConsecutiveDay: [number, number, number] }
+    | { Holiday: [number, number] }
+    | { Role: [number, number] }
+    | { WorkCount: [number, number] };

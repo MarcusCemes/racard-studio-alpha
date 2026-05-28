@@ -1,11 +1,11 @@
 use chrono::Weekday;
 use rand::{Rng, RngExt, seq::SliceRandom};
-use serde::{Deserialize, Serialize};
 
 use crate::{
     defs::N_WEEKS,
     solver::{
         context::{Context, PlacementContext, SingleAssignment},
+        defs::PhaseParameters,
         types::WeeklyRoleMask,
     },
     types::{PersonIdx, Slot, WeekIdx},
@@ -14,14 +14,8 @@ use crate::{
 
 pub struct FridaySolver<'a> {
     context: &'a Context,
-    parameters: &'a FridayParameters,
+    parameters: &'a PhaseParameters,
     state: FridayState,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FridayParameters {
-    pub number_permutations: u64,
-    pub max_resolve_attempts: u64,
 }
 
 #[derive(Default)]
@@ -32,7 +26,7 @@ struct FridayState {
 }
 
 impl FridaySolver<'_> {
-    pub fn new<'a>(parameters: &'a FridayParameters, context: &'a Context) -> FridaySolver<'a> {
+    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> FridaySolver<'a> {
         FridaySolver {
             context,
             parameters,

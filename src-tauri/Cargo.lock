@@ -2755,11 +2755,14 @@ name = "racard-studio"
 version = "0.1.0"
 dependencies = [
  "algorithm",
+ "chrono",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

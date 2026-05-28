@@ -8,61 +8,57 @@ use crate::{
     misc::BoxedArray,
     solver::{
         context::SingleAssignment,
-        friday::FridayParameters,
-        weekday::{FirstWeekdays, WeekdayAssignment, WeekdayParameters},
-        weekend::WeekendParameters,
+        weekday::{FirstWeekdays, WeekdayAssignment},
     },
     types::{ScheduleView, Slot, Solution, WeekIdx},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PhaseParameters {
+    pub number_permutations: u64,
+    pub max_resolve_attempts: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SolverParameters {
-    pub weekend_parameters: WeekendParameters,
-    pub friday_parameters: FridayParameters,
-    pub weekday_parameters: WeekdayParameters,
-    pub max_solutions: u32,
-    pub skip_last_shifts: u8,
+    pub weekend: PhaseParameters,
+    pub friday: PhaseParameters,
+    pub weekday: PhaseParameters,
 }
 
 impl SolverParameters {
     pub const FAST: Self = Self {
-        weekend_parameters: WeekendParameters {
+        weekend: PhaseParameters {
             number_permutations: 50,
             max_resolve_attempts: 50,
         },
 
-        friday_parameters: FridayParameters {
+        friday: PhaseParameters {
             number_permutations: 100,
             max_resolve_attempts: 500,
         },
 
-        weekday_parameters: WeekdayParameters {
+        weekday: PhaseParameters {
             number_permutations: 50,
             max_resolve_attempts: 25,
         },
-
-        max_solutions: 10,
-        skip_last_shifts: 3,
     };
 
     pub const SLOW: Self = Self {
-        weekend_parameters: WeekendParameters {
+        weekend: PhaseParameters {
             number_permutations: 100,
             max_resolve_attempts: 50,
         },
 
-        friday_parameters: FridayParameters {
+        friday: PhaseParameters {
             number_permutations: 10_000,
             max_resolve_attempts: 100,
         },
 
-        weekday_parameters: WeekdayParameters {
+        weekday: PhaseParameters {
             number_permutations: 100,
             max_resolve_attempts: 10,
         },
-
-        max_solutions: 20,
-        skip_last_shifts: 3,
     };
 }
 
