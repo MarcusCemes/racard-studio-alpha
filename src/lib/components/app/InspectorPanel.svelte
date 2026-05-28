@@ -9,14 +9,8 @@
     import { type ChartConfig, ChartContainer } from "$lib/components/ui/chart/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
-    import {
-        DEFAULT_WEEKDAY_HOURS,
-        NULL_ID,
-        N_WEEKDAYS,
-        N_WEEKS,
-        PERSON_COLORS,
-        Role,
-    } from "$lib/defs.js";
+    import { DEFAULT_WEEKDAY_HOURS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, Role } from "$lib/defs.js";
+    import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
 
     let openSections: Record<string, boolean> = $state({
@@ -31,7 +25,7 @@
 
     let dayIndex = $derived(app.selectedDayOfWeek);
     let weekIndex = $derived(app.selectedWeek);
-    let selectedPerson = $derived(app.activeBrush);
+    let selectedPerson = $derived(app.people[app.activeBrush ?? -1]);
 
     // Derive day data from selection
     const dayData = $derived.by(() => {
@@ -42,14 +36,14 @@
         const date = addDays(monday, dayIndex);
         const daySlot = weekIndex * N_WEEKDAYS + dayIndex;
 
-        const leadSlot = app.slots[daySlot] >> 4;
-        const suppSlot = app.slots[daySlot] & 0xf;
+        const leadSlot = getLead(app.slots[daySlot]);
+        const suppSlot = getSupport(app.slots[daySlot]);
 
         return {
             date,
             weekNumber: weekIndex + 1,
-            lead: leadSlot !== NULL_ID ? leadSlot : null,
-            support: suppSlot !== NULL_ID ? suppSlot : null,
+            lead: leadSlot != null ? leadSlot : null,
+            support: suppSlot != null ? suppSlot : null,
         };
     });
 
@@ -64,15 +58,15 @@
         }));
 
         for (let d = 0; d < N_WEEKS * N_WEEKDAYS; d++) {
-            const lead = app.slots[d] >> 4;
-            const supp = app.slots[d] & 0xf;
+            const lead = getLead(app.slots[d]);
+            const supp = getSupport(app.slots[d]);
 
-            if (lead < stats.length) {
+            if (lead != null && lead < stats.length) {
                 stats[lead].totalShifts++;
                 stats[lead].leadShifts++;
             }
 
-            if (supp < stats.length) {
+            if (supp != null && supp < stats.length) {
                 stats[supp].totalShifts++;
                 stats[supp].supportShifts++;
             }
@@ -115,8 +109,8 @@
             let totalHours = 0;
             for (let d = 0; d < N_WEEKDAYS; d++) {
                 const slot = app.slots[w * N_WEEKDAYS + d];
-                const lead = slot >> 4;
-                const supp = slot & 0xf;
+                const lead = getLead(slot);
+                const supp = getSupport(slot);
 
                 if (lead === idx) totalHours += DEFAULT_WEEKDAY_HOURS[d][0];
                 if (supp === idx) totalHours += DEFAULT_WEEKDAY_HOURS[d][1];
@@ -160,8 +154,9 @@
                     })}
                 </span>
             </div>
-        {:else if panelState === "employee" && selectedPerson}
-            {@const [{ name, rate }, _, swatch] = selectedPerson}
+        {:else if panelState === "employee" && app.activeBrush !== undefined}
+            {@const { name, rate } = app.people[app.activeBrush]}
+            {@const swatch = PERSON_COLORS[app.activeBrush % PERSON_COLORS.length][1]}
 
             <div class="flex items-center gap-2.5">
                 <span class="w-1.5 h-9 rounded-[3px] shrink-0" style="background:{swatch}"></span>
@@ -192,7 +187,7 @@
                         <div class="flex items-center gap-2">
                             <label
                                 for="cfg-start"
-                                class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                                class="text-[11.5px] text-muted-foreground w-27 shrink-0"
                                 >Start date</label
                             >
                             <Input
@@ -204,7 +199,7 @@
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <label class="text-[11.5px] text-muted-foreground w-[108px] shrink-0"
+                            <label class="text-[11.5px] text-muted-foreground w-27 shrink-0"
                                 >Employees</label
                             >
                             <span class="text-[11.5px] font-mono"
@@ -440,7 +435,6 @@
 
             <!-- ── EMPLOYEE STATE ── -->
         {:else if panelState === "employee" && selectedPerson}
-            {@const [, , swatch] = selectedPerson}
             {@const s = empStats[app.activeBrush!]}
 
             <div

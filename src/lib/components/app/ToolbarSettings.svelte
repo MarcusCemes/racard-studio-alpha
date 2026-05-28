@@ -1,11 +1,15 @@
 <script lang="ts">
     import { Settings } from "@lucide/svelte";
 
-    import { app } from "$lib/app.svelte";
+    import { app, resetApp } from "$lib/app.svelte";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 
     import { buttonVariants } from "../ui/button";
+
+    function onNew() {
+        resetApp();
+    }
 
     function onOpen() {}
 
@@ -29,6 +33,7 @@
 
     <DropdownMenu.Content class="w-56" align="end">
         <DropdownMenu.Group>
+            <DropdownMenu.Item onclick={onNew}>New</DropdownMenu.Item>
             <DropdownMenu.Item onclick={onOpen}>Open</DropdownMenu.Item>
             <DropdownMenu.Item onclick={onSave}>Save</DropdownMenu.Item>
             <DropdownMenu.Item onclick={onExport}>Export PDF</DropdownMenu.Item>

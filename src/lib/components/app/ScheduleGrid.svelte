@@ -2,7 +2,8 @@
     import { addDays, addWeeks, format, getDate, parseISO, startOfISOWeek } from "date-fns";
 
     import { app } from "$lib/app.svelte";
-    import { NULL_SLOT, N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
+    import { N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
+    import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
 
     // Structural Geometry - Only recalculated if startDate shifts
@@ -191,8 +192,8 @@
                     {@const isDaySwapSource = app.isSwapSource(day.index)}
 
                     {@const daySlots = app.slots[day.index]}
-                    {@const leadSlot = daySlots & 0xf}
-                    {@const suppSlot = daySlots >> 4}
+                    {@const leadSlot = getLead(daySlots)}
+                    {@const suppSlot = getSupport(daySlots)}
 
                     {@const holiday = app.holidayMap[day.dateString]}
                     {@const conflicts = app.conflictMap[day.index]}
@@ -282,26 +283,31 @@
 
 <!-- == ZOOM MODE SNIPPETS == -->
 
-{#snippet microCell(day: DayTopology, lead: number, support: number)}
+{#snippet microCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
     {@render roleHalf(day.index, lead, false, true)}
     {@render roleHalf(day.index, support, true, true)}
 {/snippet}
 
-{#snippet standardCell(day: DayTopology, lead: number, support: number)}
+{#snippet standardCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
     {@render roleHalf(day.index, lead, false, false)}
     {@render roleHalf(day.index, support, true, false)}
 {/snippet}
 
-{#snippet detailCell(day: DayTopology, lead: number, support: number)}
+{#snippet detailCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
     {@render roleHalf(day.index, lead, false, false)}
     {@render roleHalf(day.index, support, true, false)}
 {/snippet}
 
 <!-- == CORE ROLE RENDERER == -->
-{#snippet roleHalf(dayIndex: number, personIndex: number, isSupport: boolean, isMicro: boolean)}
-    {@const person = personIndex !== NULL_SLOT ? app.people[personIndex] : null}
+{#snippet roleHalf(
+    dayIndex: number,
+    personIndex: number | undefined,
+    isSupport: boolean,
+    isMicro: boolean,
+)}
+    {@const name = app.formattedNames[personIndex ?? -1]}
     {@const swatch =
-        personIndex !== NULL_SLOT ? PERSON_COLORS[personIndex % PERSON_COLORS.length][1] : null}
+        personIndex != null ? PERSON_COLORS[personIndex % PERSON_COLORS.length][1] : null}
     {@const roleType = isSupport ? "support" : "lead"}
 
     {@const isRoleSelected = app.isSelected(dayIndex, roleType)}
@@ -317,21 +323,19 @@
     >
         <!-- Role click triggers when not in whole-day selection modes -->
         <button
-            class="absolute inset-0 w-full h-full cursor-pointer z-[2] focus:outline-none"
+            class="absolute inset-0 w-full h-full cursor-pointer z-10 focus:outline-none"
             onclick={() => handleCellClick(dayIndex, roleType)}
             tabindex="-1"
             aria-label="Select Role"
         ></button>
 
-        {#if person}
-            <span class={cn("swatch shrink-0 z-[1]", swatch)}></span>
+        {#if name}
+            <span class={cn("swatch shrink-0", swatch)}></span>
             {#if !isMicro}
-                <span class="text-[10.5px] font-semibold leading-none truncate z-[1]"
-                    >{person.name}</span
-                >
+                <span class="text-[10.5px] font-semibold leading-none truncate">{name}</span>
             {/if}
         {:else if !isMicro}
-            <span class="text-[10px] text-muted-foreground/40 italic z-[1]">&mdash;</span>
+            <span class="text-[10px] text-muted-foreground/40 italic">&mdash;</span>
         {/if}
     </div>
 {/snippet}

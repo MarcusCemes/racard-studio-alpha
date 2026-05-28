@@ -1,18 +1,37 @@
+import { untrack } from "svelte";
+
 import { dev } from "$app/environment";
 import { app } from "$lib/app.svelte";
-import type { Conflict } from "$lib/schemas.js";
 
 export function useDev() {
     if (!dev) return;
 
     $effect(() => {
-        const { problemParameters, solution } = sampleSave();
+        untrack(() => {
+            console.log("Creating sample app state");
 
-        app.slots = solution;
-        app.people = problemParameters.people;
-        app.startDate = problemParameters.start_date;
+            const { problemParameters, refinementParameters, solverParameters, solution } =
+                sampleSave();
 
-        app.conflicts = sampleConflicts();
+            app.startDate = problemParameters.start_date;
+            app.people = problemParameters.people;
+            app.weekdayHours = problemParameters.weekday_hours as [number, number][];
+
+            app.bankHolidayDefaultHours = problemParameters.bank_holiday_default_hours as [
+                number,
+                number,
+            ][];
+
+            app.bankHolidays = problemParameters.bank_holidays;
+            app.customOverrides = problemParameters.custom_overrides;
+            app.skipLastShifts = 0;
+
+            app.slots = solution;
+
+            app.solverParams = solverParameters;
+            app.refinerParams = refinementParameters;
+            app.topK = 5;
+        });
     });
 }
 
@@ -108,7 +127,7 @@ function sampleSave() {
             ],
             start_date: "2024-08-19",
         },
-        refineParameters: {
+        refinementParameters: {
             cooling_rate: 0.995,
             initial_temperature: 1,
             num_iterations: 10000,
@@ -133,14 +152,10 @@ function sampleSave() {
             84, 246, 116, 19, 49, 37, 55, 64, 21, 3, 38, 98, 16, 55, 66, 19, 38, 80, 5, 35, 23, 6,
             50, 69, 245, 255,
         ],
-        solveParameters: {
+        solverParameters: {
             friday: { number_permutations: 1000, max_resolve_attempts: 50 },
             weekday: { number_permutations: 20, max_resolve_attempts: 50 },
             weekend: { number_permutations: 500, max_resolve_attempts: 50 },
         },
     };
-}
-
-function sampleConflicts(): Conflict[] {
-    return [{ ConsecutiveDay: [1, 2, 3] }, { ConsecutiveDay: [3, 6, 4] }];
 }

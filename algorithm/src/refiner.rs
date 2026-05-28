@@ -229,6 +229,20 @@ impl Default for RefinerProgress {
     }
 }
 
+impl Clone for RefinerProgress {
+    fn clone(&self) -> Self {
+        Self {
+            accepted: AtomicU64::new(self.accepted.load(Ordering::Relaxed)),
+            rejected: AtomicU64::new(self.rejected.load(Ordering::Relaxed)),
+            current_fitness: AtomicU64::new(self.current_fitness.load(Ordering::Relaxed)),
+            best_fitness: AtomicU64::new(self.best_fitness.load(Ordering::Relaxed)),
+            temperature: AtomicU64::new(self.temperature.load(Ordering::Relaxed)),
+            iteration: AtomicU64::new(self.iteration.load(Ordering::Relaxed)),
+            search: AtomicU64::new(self.search.load(Ordering::Relaxed)),
+        }
+    }
+}
+
 impl Serialize for RefinerProgress {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;

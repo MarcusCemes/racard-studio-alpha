@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Weak},
+    sync::{Arc, Weak, atomic::Ordering},
     time::Duration,
 };
 
@@ -17,17 +17,69 @@ use algorithm::{
     SolverProgress, SolverSolution, Weights,
 };
 
-use crate::types::Handle;
+use crate::types::{ActiveOperation, ActiveOperationState};
 
 const REPORT_PERIOD: Duration = Duration::from_millis(20);
-const SOLVER_PROGRESS_KEY: &str = "solver-progress";
-const REFINER_PROGRESS_KEY: &str = "refiner-progress";
-const ORCHESTRATE_PROGRESS_KEY: &str = "orchestrate-progress";
+const OPERATION_EVENT_KEY: &str = "operation-event";
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationKind {
+    Solve,
+    Refine,
+    Orchestrate,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum OperationStatus {
+    Started,
+    Running,
+    Finished,
+    Failed,
+    Interrupted,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum OperationPhase {
+    Solving,
+    Refining,
+}
+
+#[derive(Clone, Serialize)]
+struct OperationEvent<'a> {
+    operation: Option<OperationKind>,
+    status: OperationStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phase: Option<OperationPhase>,
+    progress: OperationProgress<'a>,
+}
+
+#[derive(Clone, Default, Serialize)]
+struct OperationProgress<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    solver: Option<&'a SolverProgress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refiner: Option<&'a RefinerProgress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    orchestration: Option<OrchestrationProgressSummary>,
+}
+
+#[derive(Clone, Serialize)]
+struct OrchestrationProgressSummary {
+    refined: u32,
+    total: u32,
+    best_fitness: Option<f32>,
+}
 
 /* === Solver === */
 
 #[derive(Debug, Error)]
 pub enum SolveError {
+    #[error("Another operation is already running")]
+    Busy,
+
     #[error("Problem input error: {0}")]
     ProblemInput(#[from] ProblemInputError),
 
@@ -52,20 +104,14 @@ pub async fn solve(
     weights: Weights,
 ) -> Result<SolverSolution, SolveError> {
     let problem = ProblemInput::try_from(problem)?;
-
-    let controller = ExecutionController::default();
+    let controller = begin_operation(&app, OperationKind::Solve)
+        .await
+        .map_err(|_| SolveError::Busy)?;
     let progress = Arc::new(SolverProgress::default());
 
-    {
-        let handle = app.state::<Handle<SolverProgress>>();
-        let mut lock = handle.0.lock().await;
-        *lock = Some((progress.clone(), controller.clone()));
-    }
-
-    async_runtime::spawn(progress_reporter(
+    async_runtime::spawn(solver_progress_reporter(
         app.clone(),
         Arc::downgrade(&progress),
-        SOLVER_PROGRESS_KEY,
     ));
 
     let result = async_runtime::spawn_blocking(move || {
@@ -74,16 +120,23 @@ pub async fn solve(
     .await
     .unwrap();
 
-    // Stop the progress reporter
-    interrupt_handle::<SolverProgress>(&app).await;
+    let status = match &result {
+        Ok(_) => OperationStatus::Finished,
+        Err(SolverError::Interrupted(_)) => OperationStatus::Interrupted,
+        Err(_) => OperationStatus::Failed,
+    };
+    end_operation(&app, OperationKind::Solve, status).await;
 
-    Ok(result?) // coerce the error
+    Ok(result?)
 }
 
 /* === Refine === */
 
 #[derive(Debug, Error)]
 pub enum RefineError {
+    #[error("Another operation is already running")]
+    Busy,
+
     #[error("Problem input error: {0}")]
     ProblemInput(#[from] ProblemInputError),
 
@@ -107,43 +160,47 @@ pub async fn refine(
     parameters: RefinementParameters,
     solution: Solution,
     weights: Weights,
-) -> Result<Option<(f32, Solution)>, RefineError> {
+) -> Result<(f32, Solution), RefineError> {
     let problem = ProblemInput::try_from(problem)?;
-
-    let controller = ExecutionController::default();
+    let controller = begin_operation(&app, OperationKind::Refine)
+        .await
+        .map_err(|_| RefineError::Busy)?;
     let progress = Arc::new(RefinerProgress::new());
 
-    {
-        let handle = app.state::<Handle<RefinerProgress>>();
-        let mut lock = handle.0.lock().await;
-        *lock = Some((progress.clone(), controller.clone()));
-    }
-
-    async_runtime::spawn(progress_reporter(
+    async_runtime::spawn(refiner_progress_reporter(
         app.clone(),
         Arc::downgrade(&progress),
-        REFINER_PROGRESS_KEY,
     ));
 
     let result = async_runtime::spawn_blocking(move || {
         let refiner = Refiner::new(&problem, &weights);
 
-        let mut result = refiner.execute(&solution, &parameters, None, &controller, &progress);
+        let result = refiner.execute(&solution, &parameters, None, &controller, &progress);
 
-        if let Ok(Some((fitness, solution))) = &mut result
-            && parameters.polish
-        {
-            refiner.polish(solution);
-            *fitness = refiner.evaluator.evaluate(solution).total();
+        let (mut fitness, mut solution) = match result {
+            Ok(Some(result)) => result,
+            Ok(None) => {
+                let fitness = refiner.evaluator.evaluate(&solution).total();
+                (fitness, solution)
+            }
+            Err(error) => return Err(error),
         };
 
-        result
+        if parameters.polish {
+            refiner.polish(&mut solution);
+            fitness = refiner.evaluator.evaluate(&solution).total();
+        };
+
+        Ok((fitness, solution))
     })
     .await
     .unwrap();
 
-    // Stop the progress reporter
-    interrupt_handle::<RefinerProgress>(&app).await;
+    let status = match &result {
+        Ok(_) => OperationStatus::Finished,
+        Err(_) => OperationStatus::Interrupted,
+    };
+    end_operation(&app, OperationKind::Refine, status).await;
 
     Ok(result?)
 }
@@ -165,6 +222,9 @@ pub async fn statistics(
 
 #[derive(Debug, Error)]
 pub enum OrchestrateError {
+    #[error("Another operation is already running")]
+    Busy,
+
     #[error("Problem input error: {0}")]
     ProblemInput(#[from] ProblemInputError),
 
@@ -189,20 +249,14 @@ pub async fn orchestrate(
     weights: Weights,
 ) -> Result<OrchestrationSolution, OrchestrateError> {
     let problem = ProblemInput::try_from(problem)?;
-
-    let controller = ExecutionController::default();
+    let controller = begin_operation(&app, OperationKind::Orchestrate)
+        .await
+        .map_err(|_| OrchestrateError::Busy)?;
     let progress = Arc::new(OrchestrationProgress::default());
 
-    {
-        let handle = app.state::<Handle<OrchestrationProgress>>();
-        let mut lock = handle.0.lock().await;
-        *lock = Some((progress.clone(), controller.clone()));
-    }
-
-    async_runtime::spawn(progress_reporter(
+    async_runtime::spawn(orchestration_progress_reporter(
         app.clone(),
         Arc::downgrade(&progress),
-        ORCHESTRATE_PROGRESS_KEY,
     ));
 
     let result = async_runtime::spawn_blocking(move || {
@@ -211,19 +265,71 @@ pub async fn orchestrate(
     .await
     .unwrap();
 
-    // Stop the progress reporter
-    interrupt_handle::<OrchestrationProgress>(&app).await;
+    let status = match &result {
+        Ok(_) => OperationStatus::Finished,
+        Err(OrchestrationError::Interrupted(_)) => OperationStatus::Interrupted,
+        Err(_) => OperationStatus::Failed,
+    };
+    end_operation(&app, OperationKind::Orchestrate, status).await;
 
     Ok(result?)
 }
 
-/* === Progress reporter === */
+/* === Operation lifecycle === */
 
-async fn progress_reporter<P: Serialize + Send + Sync + 'static>(
-    app: AppHandle,
-    progress: Weak<P>,
-    event: &'static str,
+async fn begin_operation(app: &AppHandle, kind: OperationKind) -> Result<ExecutionController, ()> {
+    let state = app.state::<ActiveOperationState>();
+    let mut active = state.0.lock().await;
+    if active.is_some() {
+        return Err(());
+    }
+
+    let controller = ExecutionController::default();
+    *active = Some(ActiveOperation {
+        controller: controller.clone(),
+    });
+
+    emit_operation_event(
+        app,
+        kind,
+        OperationStatus::Started,
+        None,
+        OperationProgress::default(),
+    );
+
+    Ok(controller)
+}
+
+async fn end_operation(app: &AppHandle, kind: OperationKind, status: OperationStatus) {
+    let state = app.state::<ActiveOperationState>();
+    let mut active = state.0.lock().await;
+    *active = None;
+    drop(active);
+
+    emit_operation_event(app, kind, status, None, OperationProgress::default());
+}
+
+fn emit_operation_event(
+    app: &AppHandle,
+    kind: OperationKind,
+    status: OperationStatus,
+    phase: Option<OperationPhase>,
+    progress: OperationProgress<'_>,
 ) {
+    let _ = app.emit(
+        OPERATION_EVENT_KEY,
+        OperationEvent {
+            operation: Some(kind),
+            status,
+            phase,
+            progress,
+        },
+    );
+}
+
+/* === Progress reporters === */
+
+async fn solver_progress_reporter(app: AppHandle, progress: Weak<SolverProgress>) {
     let mut timer = interval(REPORT_PERIOD);
 
     loop {
@@ -233,9 +339,75 @@ async fn progress_reporter<P: Serialize + Send + Sync + 'static>(
             break;
         };
 
-        if app.emit(event, &*progress).is_err() {
+        emit_operation_event(
+            &app,
+            OperationKind::Solve,
+            OperationStatus::Running,
+            Some(OperationPhase::Solving),
+            OperationProgress {
+                solver: Some(progress.as_ref()),
+                ..OperationProgress::default()
+            },
+        );
+    }
+}
+
+async fn refiner_progress_reporter(app: AppHandle, progress: Weak<RefinerProgress>) {
+    let mut timer = interval(REPORT_PERIOD);
+
+    loop {
+        timer.tick().await;
+
+        let Some(progress) = progress.upgrade() else {
             break;
-        }
+        };
+
+        emit_operation_event(
+            &app,
+            OperationKind::Refine,
+            OperationStatus::Running,
+            Some(OperationPhase::Refining),
+            OperationProgress {
+                refiner: Some(progress.as_ref()),
+                ..OperationProgress::default()
+            },
+        );
+    }
+}
+
+async fn orchestration_progress_reporter(app: AppHandle, progress: Weak<OrchestrationProgress>) {
+    let mut timer = interval(REPORT_PERIOD);
+
+    loop {
+        timer.tick().await;
+
+        let Some(progress) = progress.upgrade() else {
+            break;
+        };
+
+        let phase = match progress.phase.load(Ordering::Relaxed) {
+            0 => OperationPhase::Solving,
+            _ => OperationPhase::Refining,
+        };
+        let best_fitness = f32::from_bits(progress.best_fitness.load(Ordering::Relaxed) as u32);
+        let best_fitness = (best_fitness != f32::MAX).then_some(best_fitness);
+
+        emit_operation_event(
+            &app,
+            OperationKind::Orchestrate,
+            OperationStatus::Running,
+            Some(phase),
+            OperationProgress {
+                solver: Some(&progress.solver),
+                refiner: Some(&progress.refiner),
+                orchestration: Some(OrchestrationProgressSummary {
+                    refined: progress.refined.load(Ordering::Relaxed),
+                    total: progress.total.load(Ordering::Relaxed),
+                    best_fitness,
+                }),
+                ..OperationProgress::default()
+            },
+        );
     }
 }
 
@@ -243,16 +415,11 @@ async fn progress_reporter<P: Serialize + Send + Sync + 'static>(
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn interrupt(app: AppHandle) {
-    interrupt_handle::<SolverProgress>(&app).await;
-    interrupt_handle::<RefinerProgress>(&app).await;
-    interrupt_handle::<OrchestrationProgress>(&app).await;
-}
+    let state = app.state::<ActiveOperationState>();
+    let active = state.0.lock().await;
 
-async fn interrupt_handle<P: Send + Sync + 'static>(app: &AppHandle) {
-    let handle = app.state::<Handle<P>>();
-
-    if let Some((_, controller)) = handle.0.lock().await.take() {
-        controller.request_stop();
+    if let Some(active) = active.as_ref() {
+        active.controller.request_stop();
     }
 }
 

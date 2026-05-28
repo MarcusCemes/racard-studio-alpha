@@ -1,37 +1,37 @@
 import { type Event, listen } from "@tauri-apps/api/event";
 
 import { app } from "$lib/app.svelte.js";
-import type { OrchestrationProgress, RefinerProgress, SolverProgress } from "$lib/schemas.js";
+import type { OperationEvent } from "$lib/schemas.js";
 
-const SOLVER_PROGRESS_KEY = "solver-progress";
-const REFINER_PROGRESS_KEY = "refiner-progress";
-const ORCHESTRATE_PROGRESS_KEY = "orchestrate-progress";
+const OPERATION_EVENT_KEY = "operation-event";
 
 export function useProgressEvents() {
     $effect(() => {
-        function solverHandler(event: Event<SolverProgress>) {
-            app.solverProgress = event.payload;
+        function operationHandler(event: Event<OperationEvent>) {
+            const payload = event.payload;
+            const active = payload.status === "started" || payload.status === "running";
+
+            app.activeOp = active ? payload.operation : null;
+            app.operationStatus = payload.status;
+            app.operationPhase = payload.phase ?? null;
+
+            if (payload.progress.solver) app.solverProgress = payload.progress.solver;
+            if (payload.progress.refiner) app.refinerProgress = payload.progress.refiner;
+            if (payload.progress.orchestration) {
+                app.orchestrationProgress = payload.progress.orchestration;
+            }
+
+            if (payload.status === "started") {
+                app.solverProgress = undefined;
+                app.refinerProgress = undefined;
+                app.orchestrationProgress = undefined;
+            }
         }
 
-        function refinerHandler(event: Event<RefinerProgress>) {
-            app.refinerProgress = event.payload;
-        }
-
-        function orchestrateHandler(event: Event<OrchestrationProgress>) {
-            app.orchestratorProgress = event.payload;
-        }
-
-        const solverUnlisten = listen<SolverProgress>(SOLVER_PROGRESS_KEY, solverHandler);
-        const refinerUnlisten = listen<RefinerProgress>(REFINER_PROGRESS_KEY, refinerHandler);
-        const orchestrateUnlisten = listen<OrchestrationProgress>(
-            ORCHESTRATE_PROGRESS_KEY,
-            orchestrateHandler,
-        );
+        const operationUnlisten = listen<OperationEvent>(OPERATION_EVENT_KEY, operationHandler);
 
         return () => {
-            solverUnlisten.then((f) => f());
-            refinerUnlisten.then((f) => f());
-            orchestrateUnlisten.then((f) => f());
+            operationUnlisten.then((f) => f());
         };
     });
 }

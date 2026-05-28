@@ -38,6 +38,7 @@ pub struct OrchestrationSolution {
 pub struct OrchestrationProgress {
     pub phase: AtomicU8,
     pub solver: SolverProgress,
+    pub refiner: RefinerProgress,
     pub refined: AtomicU32,
     pub total: AtomicU32,
     pub best_fitness: AtomicU64,
@@ -48,6 +49,7 @@ impl Default for OrchestrationProgress {
         Self {
             phase: AtomicU8::new(Phase::Solving as u8),
             solver: SolverProgress::default(),
+            refiner: RefinerProgress::default(),
             refined: AtomicU32::new(0),
             total: AtomicU32::new(0),
             best_fitness: AtomicU64::new(f32::MAX.to_bits() as u64),
@@ -64,9 +66,10 @@ impl Serialize for OrchestrationProgress {
         let total = self.total.load(Ordering::Relaxed);
         let best_fitness = f32::from_bits(self.best_fitness.load(Ordering::Relaxed) as u32);
 
-        let mut s = serializer.serialize_struct("OrchestrationProgress", 5)?;
+        let mut s = serializer.serialize_struct("OrchestrationProgress", 6)?;
         s.serialize_field("phase", &phase)?;
         s.serialize_field("solver", &self.solver)?;
+        s.serialize_field("refiner", &self.refiner)?;
         s.serialize_field("refined", &refined)?;
         s.serialize_field("total", &total)?;
         s.serialize_field("best_fitness", &best_fitness)?;
@@ -148,13 +151,17 @@ impl Orchestrator {
             .total
             .store(top_solutions.len() as u32, Ordering::Relaxed);
 
+        if top_solutions.is_empty() {
+            return Err(SolverError::NoSolutionFound.into());
+        }
+
         let mut best: Option<(f32, Solution)> = None;
 
         let n = top_solutions.len();
         let n_threads = num_cpus::get().min(n.max(1));
         let chunk_size = (n + n_threads - 1) / n_threads;
 
-        thread::scope(|scope| {
+        let refine_result = thread::scope(|scope| {
             let handles: Vec<_> = top_solutions
                 .chunks(chunk_size)
                 .map(|chunk| {
@@ -166,14 +173,12 @@ impl Orchestrator {
                                 controller.assert()?;
 
                                 let refiner = Refiner::new(problem, weights);
-                                let local_progress = RefinerProgress::new();
-
                                 let result = refiner.execute(
                                     &sol.solution,
                                     refiner_params,
                                     Some(1),
                                     controller,
-                                    &local_progress,
+                                    &progress.refiner,
                                 )?;
 
                                 let fitness =
@@ -182,6 +187,24 @@ impl Orchestrator {
                                 let solution = result
                                     .map(|(_, s)| s)
                                     .unwrap_or_else(|| sol.solution.clone());
+                                let mut solution = solution;
+
+                                if refiner_params.polish {
+                                    refiner.polish(&mut solution);
+                                    let polished_fitness =
+                                        refiner.evaluator.evaluate(&solution).total();
+                                    progress.report_best(polished_fitness);
+
+                                    if local_best
+                                        .as_ref()
+                                        .is_none_or(|(b, _)| polished_fitness < *b)
+                                    {
+                                        local_best = Some((polished_fitness, solution));
+                                    }
+
+                                    progress.refined.fetch_add(1, Ordering::Relaxed);
+                                    continue;
+                                }
 
                                 if local_best.as_ref().is_none_or(|(b, _)| fitness < *b) {
                                     local_best = Some((fitness, solution));
@@ -197,13 +220,19 @@ impl Orchestrator {
                 .collect();
 
             for handle in handles {
-                if let Ok(Some((f, s))) = handle.join().expect("refiner thread panicked") {
-                    if best.as_ref().is_none_or(|(b, _)| f < *b) {
-                        best = Some((f, s));
+                match handle.join().expect("refiner thread panicked") {
+                    Ok(Some((f, s))) => {
+                        if best.as_ref().is_none_or(|(b, _)| f < *b) {
+                            best = Some((f, s));
+                        }
                     }
+                    Ok(None) => {}
+                    Err(error) => return Err(error),
                 }
             }
+            Ok(())
         });
+        refine_result?;
 
         let (fitness, solution) = best.ok_or(SolverError::NoSolutionFound)?;
 
@@ -213,6 +242,7 @@ impl Orchestrator {
             progress: OrchestrationProgress {
                 phase: AtomicU8::new(progress.phase.load(Ordering::Relaxed)),
                 solver: progress.solver.clone(),
+                refiner: progress.refiner.clone(),
                 refined: AtomicU32::new(progress.refined.load(Ordering::Relaxed)),
                 total: AtomicU32::new(progress.total.load(Ordering::Relaxed)),
                 best_fitness: AtomicU64::new(progress.best_fitness.load(Ordering::Relaxed)),

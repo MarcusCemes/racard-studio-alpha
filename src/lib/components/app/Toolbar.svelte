@@ -1,20 +1,21 @@
 <script lang="ts">
     import {
         ArrowLeftRight,
+        ChevronDown,
         Eraser,
         FlipHorizontal2,
-        Import,
         MousePointer2,
         Paintbrush,
-        Play,
-        Save,
+        Square,
         Wand2,
         Zap,
     } from "@lucide/svelte";
 
+    import { apiInterrupt, apiOrchestrate, apiRefine, apiSolve } from "$lib/api.js";
     import { type ActiveMode, app } from "$lib/app.svelte";
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
+    import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
     import { Toggle } from "$lib/components/ui/toggle/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -33,18 +34,25 @@
             { id: "erase", label: "Erase", icon: Eraser, shortcut: "E" },
         ];
 
-    let confirmSolve = $state(false);
+    type RequestedOperation = "solve" | "refine" | "orchestrate";
+
+    let confirmOperation = $state<RequestedOperation | null>(null);
+
+    let activeOp = $derived(app.activeOp);
 
     let solverRatio = $derived(
-        Math.min(1, (app.solverProgress?.[0].accepted ?? 0) / app.solverPopulation),
+        Math.min(
+            1,
+            (app.solverProgress?.[0].accepted ?? 0) / app.solverParams.weekend.number_permutations,
+        ),
     );
 
     let refinerRatio = $derived(
-        Math.min(1, (app.refinerProgress?.iteration ?? 0) / app.refinerRounds),
+        Math.min(1, (app.refinerProgress?.iteration ?? 0) / app.refinerParams.num_iterations),
     );
 
-    let orchestrateRatio = $derived(() => {
-        const p = app.orchestratorProgress;
+    let orchestrateRatio = $derived.by(() => {
+        const p = app.orchestrationProgress;
         if (!p || p.total === 0) return 0;
         return Math.min(1, p.refined / p.total);
     });
@@ -52,34 +60,74 @@
     let solverPercent = $derived(solverRatio * 100);
     let refinerPercent = $derived(refinerRatio * 100);
     let orchestratePercent = $derived(orchestrateRatio * 100);
+    let activePercent = $derived.by(() => {
+        if (activeOp === "solve") return solverPercent;
+        if (activeOp === "refine") return refinerPercent;
+        if (activeOp === "orchestrate") {
+            return app.operationPhase === "solving" ? solverPercent : orchestratePercent;
+        }
+        return 0;
+    });
 
-    function onsolve() {
-        confirmSolve = true;
+    function requestOperation(operation: RequestedOperation) {
+        confirmOperation = operation;
     }
 
-    function onstopsolver() {
-        app.solverActive = false;
+    function onstop() {
+        apiInterrupt();
     }
 
-    function onrefine() {
-        app.refinerActive = true;
-    }
+    function runOperation(operation: RequestedOperation) {
+        if (operation === "solve") {
+            apiSolve(app, app.solverParams, app.weights).then((result) => {
+                app.slots = result.solution;
+            });
+            return;
+        }
 
-    function onstoprefine() {
-        app.refinerActive = false;
-    }
+        if (operation === "refine") {
+            apiRefine(app, app.refinerParams, app.slots, app.weights).then((result) => {
+                app.slots = result[1];
+            });
+            return;
+        }
 
-    function onorchestrate() {
-        app.orchestratorActive = true;
-    }
-
-    function onstoporchestrate() {
-        app.orchestratorActive = false;
+        apiOrchestrate(
+            app,
+            { top_k: app.topK },
+            app.solverParams,
+            app.refinerParams,
+            app.weights,
+        ).then((result) => {
+            app.slots = result.solution;
+        });
     }
 
     function onconfirm() {
-        confirmSolve = false;
-        app.solverActive = true;
+        if (!confirmOperation) return;
+        const operation = confirmOperation;
+        confirmOperation = null;
+        runOperation(operation);
+    }
+
+    function confirmTitle() {
+        if (confirmOperation === "solve") return "Run solver?";
+        if (confirmOperation === "refine") return "Run refiner?";
+        return "Run Auto?";
+    }
+
+    function confirmDescription() {
+        if (confirmOperation === "solve") {
+            return "The solver will replace the current schedule with a generated schedule.";
+        }
+        if (confirmOperation === "refine") {
+            return "The refiner will replace the current schedule with the best refined result.";
+        }
+        return "Auto will solve candidate schedules, refine the top results, and replace the current schedule with the best final result.";
+    }
+
+    function closeConfirm(open: boolean) {
+        if (!open) confirmOperation = null;
     }
 
     function onkeydown(event: KeyboardEvent) {
@@ -107,7 +155,6 @@
         >
             {#each modes as m}
                 {@const pressed = app.activeMode === m.id}
-
                 <Tooltip.Root>
                     <Tooltip.Trigger>
                         {#snippet child({ props })}
@@ -134,60 +181,62 @@
     <div class="flex items-center gap-1">
         <ToolbarHistory />
         <ToolbarSettings />
-
         <Separator orientation="vertical" class="h-5 mx-1" />
-
         <div class="w-2"></div>
 
-        {#if app.solverActive}
-            <Button variant="destructive" onclick={onstopsolver}>
-                <ProgressRing value={solverPercent} />
-                Stop
-            </Button>
-        {:else}
-            <Button variant="outline" onclick={onsolve} disabled={app.refinerActive || app.orchestratorActive}>
-                <Play />
-                Solve
-            </Button>
-        {/if}
+        <div class="flex items-center">
+            {#if activeOp}
+                <Button variant="destructive" onclick={onstop} class="rounded-r-none">
+                    <ProgressRing value={activePercent} />
+                    Stop
+                </Button>
+            {:else}
+                <Button onclick={() => requestOperation("orchestrate")} class="rounded-r-none">
+                    <Wand2 />
+                    Auto
+                </Button>
+            {/if}
 
-        {#if app.refinerActive}
-            <Button variant="destructive" onclick={onstoprefine}>
-                <ProgressRing value={refinerPercent} />
-                Stop
-            </Button>
-        {:else}
-            <Button onclick={onrefine} disabled={app.solverActive || app.orchestratorActive}>
-                <Zap />
-                Refine
-            </Button>
-        {/if}
-
-        {#if app.orchestratorActive}
-            <Button variant="destructive" onclick={onstoporchestrate}>
-                <ProgressRing value={orchestratePercent} />
-                Stop
-            </Button>
-        {:else}
-            <Button onclick={onorchestrate} disabled={app.solverActive || app.refinerActive}>
-                <Wand2 />
-                Orchestrate
-            </Button>
-        {/if}
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger disabled={activeOp !== null}>
+                    {#snippet child({ props })}
+                        <Button
+                            {...props}
+                            variant={activeOp ? "destructive" : "default"}
+                            disabled={activeOp !== null}
+                            class="rounded-l-none border-l border-primary-foreground/20 px-2"
+                        >
+                            {#if activeOp}
+                                <Square />
+                            {:else}
+                                <ChevronDown />
+                            {/if}
+                        </Button>
+                    {/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end" class="w-40">
+                    <DropdownMenu.Item onclick={() => requestOperation("solve")}>
+                        <Wand2 />
+                        Solve
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item onclick={() => requestOperation("refine")}>
+                        <Zap />
+                        Refine
+                    </DropdownMenu.Item>
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+        </div>
     </div>
 </header>
 
-<AlertDialog.Root bind:open={confirmSolve}>
+<AlertDialog.Root bind:open={() => confirmOperation !== null, closeConfirm}>
     <AlertDialog.Content>
         <AlertDialog.Header>
-            <AlertDialog.Title>Generate new schedule?</AlertDialog.Title>
-
+            <AlertDialog.Title>{confirmTitle()}</AlertDialog.Title>
             <AlertDialog.Description>
-                Starting the solver will replace the current schedule. Please make sure you have
-                saved your changes.
+                {confirmDescription()}
             </AlertDialog.Description>
         </AlertDialog.Header>
-
         <AlertDialog.Footer>
             <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
             <AlertDialog.Action onclick={onconfirm}>Continue</AlertDialog.Action>

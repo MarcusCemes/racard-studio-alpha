@@ -1,8 +1,10 @@
-use std::sync::Arc;
-
 use tokio::sync::Mutex;
 
 use algorithm::ExecutionController;
 
+pub struct ActiveOperation {
+    pub controller: ExecutionController,
+}
+
 #[derive(Default)]
-pub struct Handle<P>(pub Mutex<Option<(Arc<P>, ExecutionController)>>);
+pub struct ActiveOperationState(pub Mutex<Option<ActiveOperation>>);

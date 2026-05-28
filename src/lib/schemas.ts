@@ -105,6 +105,10 @@ export const refinementParametersSchema = z.object({
 export type OrchestrationParameters = z.infer<typeof orchestrationParametersSchema>;
 export const orchestrationParametersSchema = z.object({
     top_k: z.number().int().min(1),
+});
+
+export type OrchestrationRequest = z.infer<typeof orchestrationRequestSchema>;
+export const orchestrationRequestSchema = orchestrationParametersSchema.extend({
     solver: solverParametersSchema,
     refiner: refinementParametersSchema,
 });
@@ -159,6 +163,7 @@ export type OrchestrationProgress = z.infer<typeof orchestrationProgressSchema>;
 export const orchestrationProgressSchema = z.object({
     phase: z.number().int().min(0).max(1),
     solver: solverProgressSchema,
+    refiner: refinerProgressSchema,
     refined: z.number().int().min(0),
     total: z.number().int().min(0),
     best_fitness: z.number(),
@@ -169,6 +174,43 @@ export const orchestrationSolutionSchema = z.object({
     fitness: z.number(),
     solution: slotsSchema,
     progress: orchestrationProgressSchema,
+});
+
+export const operationKindSchema = z.enum(["solve", "refine", "orchestrate"]);
+export type OperationKind = z.infer<typeof operationKindSchema>;
+
+export const operationStatusSchema = z.enum([
+    "started",
+    "running",
+    "finished",
+    "failed",
+    "interrupted",
+]);
+export type OperationStatus = z.infer<typeof operationStatusSchema>;
+
+export const operationPhaseSchema = z.enum(["solving", "refining"]);
+export type OperationPhase = z.infer<typeof operationPhaseSchema>;
+
+export type OperationProgressSummary = z.infer<typeof operationProgressSummarySchema>;
+export const operationProgressSummarySchema = z.object({
+    refined: z.number().int().min(0),
+    total: z.number().int().min(0),
+    best_fitness: z.number().nullable().optional(),
+});
+
+export type OperationProgress = z.infer<typeof operationProgressSchema>;
+export const operationProgressSchema = z.object({
+    solver: solverProgressSchema.optional(),
+    refiner: refinerProgressSchema.optional(),
+    orchestration: operationProgressSummarySchema.optional(),
+});
+
+export type OperationEvent = z.infer<typeof operationEventSchema>;
+export const operationEventSchema = z.object({
+    operation: operationKindSchema.nullable(),
+    status: operationStatusSchema,
+    phase: operationPhaseSchema.optional(),
+    progress: operationProgressSchema,
 });
 
 /* === Errors === */

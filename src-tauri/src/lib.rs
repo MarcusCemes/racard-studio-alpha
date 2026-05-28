@@ -1,14 +1,14 @@
 use tauri::Manager;
 
+use crate::types::ActiveOperationState;
+
 mod commands;
 mod types;
-
-pub struct AppState;
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            app.manage(AppState);
+            app.manage(ActiveOperationState::default());
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

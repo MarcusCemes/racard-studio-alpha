@@ -1,56 +1,116 @@
 import { format, startOfISOWeek } from "date-fns";
 
-import { NULL_ID, NULL_SLOT, N_DAYS, N_WEEKDAYS } from "./defs.js";
+import { DEFAULT_BANK_HOLIDAY_HOURS, DEFAULT_WEEKDAY_HOURS, N_DAYS, N_WEEKDAYS } from "./defs.js";
 import { parseConflict } from "./misc.js";
 import type {
+    BankHoliday,
     Conflict,
-    OrchestrationProgress,
+    CustomOverride,
+    FitnessWeights,
+    OperationKind,
+    OperationPhase,
+    OperationProgressSummary,
+    OperationStatus,
     Person,
+    RefinementParameters,
     RefinerProgress,
+    ScheduleStatistics,
+    SolverParameters,
     SolverProgress,
 } from "./schemas.js";
+import { NULL_SLOT, getLead, getSupport, setLead, setSupport } from "./slot.js";
 
 class AppState {
+    // --- Problem inputs (raw, editable) ---
     startDate = newStartDate();
-    people = $state(newPeople());
-    slots = $state<number[]>(sampleSlots());
+    people = $state<Person[]>(newPeople());
+    weekdayHours = $state<[number, number][]>(DEFAULT_WEEKDAY_HOURS);
+    bankHolidayDefaultHours = $state<[number, number][]>(DEFAULT_BANK_HOLIDAY_HOURS);
+    bankHolidays = $state<BankHoliday[]>([]);
+    customOverrides = $state<CustomOverride[]>([]);
+    skipLastShifts = $state(0);
 
-    // Cleaned Interaction states
+    // --- Schedule ---
+    slots = $state<number[]>(Array.from({ length: N_DAYS }, () => NULL_SLOT));
+
+    // --- Parameters ---
+    solverParams = $state<SolverParameters>({
+        weekend: { number_permutations: 50, max_resolve_attempts: 50 },
+        friday: { number_permutations: 1000, max_resolve_attempts: 50 },
+        weekday: { number_permutations: 20, max_resolve_attempts: 50 },
+    });
+
+    refinerParams = $state<RefinementParameters>({
+        cooling_rate: 0.995,
+        initial_temperature: 1,
+        num_iterations: 10000,
+        polish: true,
+        searches: 1000,
+    });
+
+    weights = $state<FitnessWeights>({
+        annual_hours: 5,
+        consecutive_days: 20,
+        consecutive_weekends: 10,
+        weekend_alternation: 1,
+        weekend_regularity: 1,
+        weekly_hours: 1,
+        blank_weeks: 50,
+    });
+
+    topK = $state(5);
+
+    // --- Interaction states ---
     selection = $state<SelectionTarget>({ type: "none" });
     swapSource = $state<SelectionTarget>({ type: "none" });
     activeBrush = $state<number>();
-
-    // Sparse raw collections
-    holidays = $state<{ date: string; name: string }[]>([]); // Sparse holiday list
-    conflicts = $state<Conflict[]>([]); // Sparse conflict list
-
     activeMode = $state<ActiveMode>("select");
     zoomLevel = $state<ZoomLevel>("standard");
 
-    // History & Solvers (kept intact)
+    // --- Operation state (from events only) ---
+    activeOp = $state<OperationKind | null>(null);
+    operationStatus = $state<OperationStatus | null>(null);
+    operationPhase = $state<OperationPhase | null>(null);
+    solverProgress = $state<SolverProgress>();
+    refinerProgress = $state<RefinerProgress>();
+    orchestrationProgress = $state<OperationProgressSummary>();
+
+    // --- Computed results ---
+    statistics = $state<ScheduleStatistics>();
+    conflicts = $state<Conflict[]>([]);
+
+    // --- History ---
     history = $state<number[][]>([]);
     historyCursor = $state(0);
-    checkpoints = $state<Checkpoint[]>(sampleCheckpoints());
-    solverActive = $state(false);
-    solverPopulation = $state(500);
-    solverProgress = $state<SolverProgress>();
-    refinerActive = $state(false);
-    refinerProgress = $state<RefinerProgress>();
-    refinerRounds = $state(500);
-    orchestratorActive = $state(false);
-    orchestratorProgress = $state<OrchestrationProgress>();
+    checkpoints = $state<Checkpoint[]>([]);
 
-    // 2. High-Performance Derived O(1) Lookups
-    // Map of date string -> holiday name
+    formattedNames = $derived.by(() =>
+        this.people.map((p) => {
+            const spaceIdx = p.name.indexOf(" ");
+
+            return spaceIdx === -1
+                ? p.name
+                : `${p.name.slice(0, spaceIdx)} ${p.name[spaceIdx + 1]}.`;
+        }),
+    );
+
+    // --- Derived: fitness ---
+    get fitness(): number {
+        return this.statistics?.fitness
+            ? Object.values(this.statistics.fitness).reduce((a, b) => a + b, 0)
+            : 0;
+    }
+
+    // --- Derived: holiday lookup map ---
     holidayMap = $derived.by<Record<string, string>>(() => {
         const map: Record<string, string> = {};
-        for (const h of this.holidays) {
-            map[h.date] = h.name;
+        for (const h of this.bankHolidays) {
+            if (h.enabled) map[h.date] = h.name;
         }
         return map;
     });
 
-    // Map of dayIndex -> Conflicts list
+    // --- Derived: conflict lookup by day ---
     conflictMap = $derived.by<Record<number, string[]>>(() => {
         const map: Record<number, string[]> = {};
 
@@ -66,17 +126,14 @@ class AppState {
         return map;
     });
 
-    // Clean mutations for the grid to call directly
+    // --- Clean mutations for the grid ---
     setRole(dayIndex: number, role: "lead" | "support", personId: number | undefined) {
         const current = this.slots[dayIndex];
-        let lead = current & 0xf;
-        let supp = current >> 4;
-
-        const val = personId ?? NULL_SLOT;
-        if (role === "lead") lead = val;
-        else supp = val;
-
-        this.slots[dayIndex] = (supp << 4) | lead;
+        if (role === "lead") {
+            this.slots[dayIndex] = setLead(current, personId);
+        } else {
+            this.slots[dayIndex] = setSupport(current, personId);
+        }
     }
 
     swapDays(idxA: number, idxB: number) {
@@ -95,11 +152,9 @@ class AppState {
 
     private getRoleValue(dayIndex: number, role: "lead" | "support"): number | undefined {
         const current = this.slots[dayIndex];
-        const val = role === "lead" ? current & 0xf : current >> 4;
-        return val !== NULL_ID ? val : undefined;
+        return role === "lead" ? getLead(current) : getSupport(current);
     }
 
-    // Helpers to quickly evaluate selection state
     isSelected(dayIndex: number, role?: "lead" | "support"): boolean {
         const sel = this.selection;
         if (sel.type === "none") return false;
@@ -131,14 +186,29 @@ class AppState {
     restoreCheckpoint = (cp: Checkpoint) => {
         this.slots = cp.slots;
     };
-
-    get solverCompletion(): number {
-        const { accepted, rejected } = this.solverProgress?.[0] ?? { accepted: 0, rejected: 0 };
-        return (accepted + rejected) / this.solverPopulation;
-    }
 }
 
-export const app: AppState = new AppState();
+let currentApp = $state(new AppState());
+
+export const app = new Proxy({} as AppState, {
+    get(_, prop) {
+        const value = Reflect.get(currentApp, prop);
+
+        if (typeof value === "function") {
+            return value.bind(currentApp);
+        }
+
+        return value;
+    },
+
+    set(_, prop, value) {
+        return Reflect.set(currentApp, prop, value);
+    },
+});
+
+export function resetApp() {
+    currentApp = new AppState();
+}
 
 export interface Checkpoint {
     name: string;
@@ -162,19 +232,5 @@ function newPeople(): Person[] {
     return [
         { holidays: [], name: "Alice", rate: 50 },
         { holidays: [], name: "Bob", rate: 50 },
-    ];
-}
-
-function sampleSlots(): number[] {
-    return Array.from({ length: N_DAYS }, (_, i) => i % 256);
-}
-
-function sampleCheckpoints(): Checkpoint[] {
-    return [
-        {
-            name: "Checkpoint 1",
-            slots: Array.from({ length: N_DAYS }, () => NULL_SLOT),
-            timestamp: Date.now(),
-        },
     ];
 }

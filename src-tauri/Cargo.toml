@@ -23,3 +23,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 algorithm = { path = "../algorithm" }
+
+
+[profile.dev.package.algorithm]
+opt-level = 2

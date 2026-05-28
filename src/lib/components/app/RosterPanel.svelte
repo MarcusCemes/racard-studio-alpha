@@ -8,12 +8,10 @@
     import {
         MAX_PEOPLE,
         MIN_PEOPLE,
-        NULL_SLOT,
         N_DAYS,
-        N_ROLES,
         PERSON_COLORS,
-        Role,
     } from "$lib/defs.js";
+import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
 
     interface EmpStats {
@@ -40,16 +38,18 @@
         }
 
         for (let day = 0; day < N_DAYS; day++) {
-            for (let role = 0; role < N_ROLES; role++) {
-                const slot = app.slots[day * N_ROLES + role];
-                if (slot !== NULL_SLOT) {
-                    const entry = map.get(slot);
-                    if (entry) {
-                        entry.totalShifts++;
-                        if (role === Role.Lead) entry.leadShifts++;
-                        else entry.supportShifts++;
-                    }
-                }
+            const slot = app.slots[day];
+            if (slot === NULL_SLOT) continue;
+
+            const lead = getLead(slot);
+            const supp = getSupport(slot);
+            if (lead != null) {
+                const entry = map.get(lead);
+                if (entry) { entry.totalShifts++; entry.leadShifts++; }
+            }
+            if (supp != null) {
+                const entry = map.get(supp);
+                if (entry) { entry.totalShifts++; entry.supportShifts++; }
             }
         }
 

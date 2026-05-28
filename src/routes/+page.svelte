@@ -1,9 +1,8 @@
 <script lang="ts">
     import InspectorPanel from "$lib/components/app/InspectorPanel.svelte";
-    import RefinerProgress from "$lib/components/app/RefinerProgress.svelte";
+    import OperationProgress from "$lib/components/app/OperationProgress.svelte";
     import RosterPanel from "$lib/components/app/RosterPanel.svelte";
     import ScheduleGrid from "$lib/components/app/ScheduleGrid.svelte";
-    import SolverProgress from "$lib/components/app/SolverProgress.svelte";
     import StatusBar from "$lib/components/app/StatusBar.svelte";
     import Toolbar from "$lib/components/app/Toolbar.svelte";
 </script>
@@ -20,5 +19,4 @@
     <StatusBar />
 </div>
 
-<SolverProgress />
-<RefinerProgress />
+<OperationProgress />

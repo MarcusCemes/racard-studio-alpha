@@ -9,6 +9,7 @@ import type {
     FitnessWeights,
     Holiday,
     OrchestrationParameters,
+    OrchestrationRequest,
     OrchestrationSolution,
     Person,
     ProblemConfig,
@@ -22,40 +23,30 @@ import type {
 } from "$lib/schemas.js";
 
 function buildOverrides(
-    bank_holidays: BankHoliday[],
-    custom_overrides: CustomOverride[],
-    bank_holiday_default_hours: [number, number][],
+    bankHolidays: BankHoliday[],
+    customOverrides: CustomOverride[],
+    bankHolidayDefaultHours: [number, number][],
 ): ProblemOverrides {
     const leadMap = new Map<string, number>();
     const supportMap = new Map<string, number>();
 
-    // 1. Process bank holidays (Lead: day before, Support: day of)
-    for (const bh of bank_holidays) {
+    for (const bh of bankHolidays) {
         if (!bh.enabled) continue;
-
-        const bhDayIdx = getISODay(bh.date) - 1; // getISODay() returns 1-based index (Monday = 1)
-        const defaultsForThisBH = bank_holiday_default_hours[bhDayIdx];
-
-        if (!defaultsForThisBH) {
+        const bhDayIdx = getISODay(bh.date) - 1;
+        const defaults = bankHolidayDefaultHours[bhDayIdx];
+        if (!defaults) {
             throw new Error(`Missing bank holiday default hours for weekday index ${bhDayIdx}`);
         }
-
         const leadDate = format(addDays(bh.date, 1), "yyyy-MM-dd");
-        const leadHours = bh.lead_hours !== null ? bh.lead_hours : defaultsForThisBH[Role.Lead];
+        const leadHours = bh.lead_hours ?? defaults[Role.Lead];
         leadMap.set(leadDate, leadHours);
-
-        const supportHours =
-            bh.support_hours !== null ? bh.support_hours : defaultsForThisBH[Role.Support];
+        const supportHours = bh.support_hours ?? defaults[Role.Support];
         supportMap.set(bh.date, supportHours);
     }
 
-    // 2. Process custom overrides (which override bank holiday hours)
-    for (const co of custom_overrides) {
-        if (co.role === "Lead") {
-            leadMap.set(co.date, co.hours);
-        } else {
-            supportMap.set(co.date, co.hours);
-        }
+    for (const co of customOverrides) {
+        if (co.role === "Lead") leadMap.set(co.date, co.hours);
+        else supportMap.set(co.date, co.hours);
     }
 
     return {
@@ -64,103 +55,115 @@ function buildOverrides(
     };
 }
 
-function buildProblemConfig(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
+export function buildProblemConfig(input: {
+    startDate: string;
     people: Person[];
-    start_date: string;
-    skip_last_shifts: number;
+    weekdayHours: [number, number][];
+    bankHolidayDefaultHours: [number, number][];
+    bankHolidays: BankHoliday[];
+    customOverrides: CustomOverride[];
+    skipLastShifts: number;
 }): ProblemConfig {
     return {
-        start_date: input.start_date,
+        start_date: input.startDate,
         people: input.people,
-        weekday_hours: input.weekday_hours,
+        weekday_hours: input.weekdayHours,
         overrides: buildOverrides(
-            input.bank_holidays,
-            input.custom_overrides,
-            input.bank_holiday_default_hours,
+            input.bankHolidays,
+            input.customOverrides,
+            input.bankHolidayDefaultHours,
         ),
-        skip_last_shifts: input.skip_last_shifts,
+        skip_last_shifts: input.skipLastShifts,
     };
 }
 
-export async function apiSolve(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
-    people: Person[];
-    start_date: string;
-    skip_last_shifts: number;
-    solver_parameters: SolverParameters;
-    weights: FitnessWeights;
-}) {
-    const problem = buildProblemConfig(input);
+export async function apiSolve(
+    problem: {
+        startDate: string;
+        people: Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: BankHoliday[];
+        customOverrides: CustomOverride[];
+        skipLastShifts: number;
+    },
+    solverParams: SolverParameters,
+    weights: FitnessWeights,
+) {
     return await invoke<SolverSolution>("solve", {
-        problem,
-        solver_parameters: input.solver_parameters,
-        weights: input.weights,
+        problem: buildProblemConfig(problem),
+        solver_parameters: solverParams,
+        weights,
     });
 }
 
-export async function apiRefine(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
-    parameters: RefinementParameters;
-    people: Person[];
-    solution: Solution;
-    start_date: string;
-    skip_last_shifts: number;
-    weights: FitnessWeights;
-}) {
-    const problem = buildProblemConfig(input);
-    return await invoke<[number, Solution] | null>("refine", {
-        problem,
-        parameters: input.parameters,
-        solution: input.solution,
-        weights: input.weights,
+export async function apiRefine(
+    problem: {
+        startDate: string;
+        people: Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: BankHoliday[];
+        customOverrides: CustomOverride[];
+        skipLastShifts: number;
+    },
+    refinerParams: RefinementParameters,
+    solution: Solution,
+    weights: FitnessWeights,
+) {
+    return await invoke<[number, Solution]>("refine", {
+        problem: buildProblemConfig(problem),
+        parameters: refinerParams,
+        solution,
+        weights,
     });
 }
 
-export async function apiOrchestrate(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
-    parameters: OrchestrationParameters;
-    people: Person[];
-    start_date: string;
-    skip_last_shifts: number;
-    weights: FitnessWeights;
-}) {
-    const problem = buildProblemConfig(input);
+export async function apiOrchestrate(
+    problem: {
+        startDate: string;
+        people: Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: BankHoliday[];
+        customOverrides: CustomOverride[];
+        skipLastShifts: number;
+    },
+    orchestrateParams: OrchestrationParameters,
+    solverParams: SolverParameters,
+    refinerParams: RefinementParameters,
+    weights: FitnessWeights,
+) {
+    const parameters: OrchestrationRequest = {
+        top_k: orchestrateParams.top_k,
+        solver: solverParams,
+        refiner: refinerParams,
+    };
+
     return await invoke<OrchestrationSolution>("orchestrate", {
-        problem,
-        parameters: input.parameters,
-        weights: input.weights,
+        problem: buildProblemConfig(problem),
+        parameters,
+        weights,
     });
 }
 
-export async function apiStatistics(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
-    people: Person[];
-    solution: Solution;
-    start_date: string;
-    skip_last_shifts: number;
-    weights: FitnessWeights;
-}) {
-    const problem = buildProblemConfig(input);
+export async function apiStatistics(
+    problem: {
+        startDate: string;
+        people: Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: BankHoliday[];
+        customOverrides: CustomOverride[];
+        skipLastShifts: number;
+    },
+    solution: Solution,
+    weights: FitnessWeights,
+) {
     return await invoke<ScheduleStatistics>("statistics", {
-        problem,
-        solution: input.solution,
-        weights: input.weights,
+        problem: buildProblemConfig(problem),
+        solution,
+        weights,
     });
 }
 
@@ -172,20 +175,21 @@ export async function apiBankHolidays(start_date: string) {
     return await invoke<[string, Holiday][]>("geneva_bank_holidays", { start_date });
 }
 
-export async function apiValidate(input: {
-    bank_holidays: BankHoliday[];
-    custom_overrides: CustomOverride[];
-    bank_holiday_default_hours: [number, number][];
-    weekday_hours: [number, number][];
-    people: Person[];
-    solution: Solution;
-    start_date: string;
-    skip_last_shifts: number;
-}): Promise<Conflict[]> {
-    const problem = buildProblemConfig(input);
+export async function apiValidate(
+    problem: {
+        startDate: string;
+        people: Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: BankHoliday[];
+        customOverrides: CustomOverride[];
+        skipLastShifts: number;
+    },
+    solution: Solution,
+): Promise<Conflict[]> {
     return await invoke("validate", {
-        problem,
-        solution: input.solution,
+        problem: buildProblemConfig(problem),
+        solution,
     });
 }
 
