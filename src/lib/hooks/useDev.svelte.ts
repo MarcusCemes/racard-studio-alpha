@@ -1,5 +1,6 @@
 import { dev } from "$app/environment";
 import { app } from "$lib/app.svelte";
+import type { Conflict } from "$lib/schemas.js";
 
 export function useDev() {
     if (!dev) return;
@@ -10,6 +11,8 @@ export function useDev() {
         app.slots = solution;
         app.people = problemParameters.people;
         app.startDate = problemParameters.start_date;
+
+        app.conflicts = sampleConflicts();
     });
 }
 
@@ -136,4 +139,8 @@ function sampleSave() {
             weekend: { number_permutations: 500, max_resolve_attempts: 50 },
         },
     };
+}
+
+function sampleConflicts(): Conflict[] {
+    return [{ ConsecutiveDay: [1, 2, 3] }, { ConsecutiveDay: [3, 6, 4] }];
 }

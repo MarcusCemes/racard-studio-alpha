@@ -31,7 +31,7 @@
 
     let dayIndex = $derived(app.selectedDayOfWeek);
     let weekIndex = $derived(app.selectedWeek);
-    let selectedPerson = $derived(app.selectedPerson);
+    let selectedPerson = $derived(app.activeBrush);
 
     // Derive day data from selection
     const dayData = $derived.by(() => {
@@ -107,7 +107,7 @@
     ];
 
     const weeklyHours = $derived.by(() => {
-        const idx = app.selectedPersonIndex;
+        const idx = app.activeBrush;
         if (idx === undefined) return [];
 
         const data: { week: number; hours: number }[] = [];
@@ -127,7 +127,8 @@
     });
 
     const weeklyChartConfig = $derived.by(() => {
-        const idx = app.selectedPersonIndex;
+        const idx = app.activeBrush;
+
         const config: ChartConfig = {
             hours: {
                 label: "Hours",
@@ -139,14 +140,6 @@
     });
 
     const panelState = $derived(dayIndex ? "day" : selectedPerson ? "employee" : "idle");
-
-    function onDeleteEmployee() {
-        const index = app.selectedPersonIndex;
-        if (index === undefined) return;
-
-        app.people.splice(index, 1);
-        app.selectedPersonIndex = undefined;
-    }
 </script>
 
 <aside class="w-72 shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
@@ -448,7 +441,7 @@
             <!-- ── EMPLOYEE STATE ── -->
         {:else if panelState === "employee" && selectedPerson}
             {@const [, , swatch] = selectedPerson}
-            {@const s = empStats[app.selectedPersonIndex!]}
+            {@const s = empStats[app.activeBrush!]}
 
             <div
                 class="grid grid-cols-2 gap-px mx-3.5 mb-3.5 rounded-lg overflow-hidden border border-border bg-border"

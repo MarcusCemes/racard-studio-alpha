@@ -8,6 +8,8 @@ import type {
     CustomOverride,
     FitnessWeights,
     Holiday,
+    OrchestrationParameters,
+    OrchestrationSolution,
     Person,
     ProblemConfig,
     ProblemOverrides,
@@ -120,6 +122,25 @@ export async function apiRefine(input: {
         problem,
         parameters: input.parameters,
         solution: input.solution,
+        weights: input.weights,
+    });
+}
+
+export async function apiOrchestrate(input: {
+    bank_holidays: BankHoliday[];
+    custom_overrides: CustomOverride[];
+    bank_holiday_default_hours: [number, number][];
+    weekday_hours: [number, number][];
+    parameters: OrchestrationParameters;
+    people: Person[];
+    start_date: string;
+    skip_last_shifts: number;
+    weights: FitnessWeights;
+}) {
+    const problem = buildProblemConfig(input);
+    return await invoke<OrchestrationSolution>("orchestrate", {
+        problem,
+        parameters: input.parameters,
         weights: input.weights,
     });
 }

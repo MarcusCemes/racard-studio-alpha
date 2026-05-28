@@ -102,6 +102,13 @@ export const refinementParametersSchema = z.object({
     searches: z.number().int().min(1),
 });
 
+export type OrchestrationParameters = z.infer<typeof orchestrationParametersSchema>;
+export const orchestrationParametersSchema = z.object({
+    top_k: z.number().int().min(1),
+    solver: solverParametersSchema,
+    refiner: refinementParametersSchema,
+});
+
 export type FitnessWeights = z.infer<typeof fitnessWeightsSchema>;
 export const fitnessWeightsSchema = z.object({
     annual_hours: z.number().min(0),
@@ -146,6 +153,22 @@ export const solverSolutionSchema = z.object({
     fitness: z.number(),
     progress: solverProgressSchema,
     solution: slotsSchema,
+});
+
+export type OrchestrationProgress = z.infer<typeof orchestrationProgressSchema>;
+export const orchestrationProgressSchema = z.object({
+    phase: z.number().int().min(0).max(1),
+    solver: solverProgressSchema,
+    refined: z.number().int().min(0),
+    total: z.number().int().min(0),
+    best_fitness: z.number(),
+});
+
+export type OrchestrationSolution = z.infer<typeof orchestrationSolutionSchema>;
+export const orchestrationSolutionSchema = z.object({
+    fitness: z.number(),
+    solution: slotsSchema,
+    progress: orchestrationProgressSchema,
 });
 
 /* === Errors === */

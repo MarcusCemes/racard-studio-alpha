@@ -1,10 +1,11 @@
 import { type Event, listen } from "@tauri-apps/api/event";
 
 import { app } from "$lib/app.svelte.js";
-import type { RefinerProgress, SolverProgress } from "$lib/schemas.js";
+import type { OrchestrationProgress, RefinerProgress, SolverProgress } from "$lib/schemas.js";
 
 const SOLVER_PROGRESS_KEY = "solver-progress";
 const REFINER_PROGRESS_KEY = "refiner-progress";
+const ORCHESTRATE_PROGRESS_KEY = "orchestrate-progress";
 
 export function useProgressEvents() {
     $effect(() => {
@@ -16,12 +17,21 @@ export function useProgressEvents() {
             app.refinerProgress = event.payload;
         }
 
+        function orchestrateHandler(event: Event<OrchestrationProgress>) {
+            app.orchestratorProgress = event.payload;
+        }
+
         const solverUnlisten = listen<SolverProgress>(SOLVER_PROGRESS_KEY, solverHandler);
         const refinerUnlisten = listen<RefinerProgress>(REFINER_PROGRESS_KEY, refinerHandler);
+        const orchestrateUnlisten = listen<OrchestrationProgress>(
+            ORCHESTRATE_PROGRESS_KEY,
+            orchestrateHandler,
+        );
 
         return () => {
             solverUnlisten.then((f) => f());
             refinerUnlisten.then((f) => f());
+            orchestrateUnlisten.then((f) => f());
         };
     });
 }

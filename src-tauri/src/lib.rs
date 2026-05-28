@@ -15,6 +15,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::geneva_bank_holidays,
             commands::interrupt,
+            commands::orchestrate,
             commands::refine,
             commands::solve,
             commands::statistics,

@@ -2,6 +2,7 @@ mod defs;
 mod fitness;
 mod holiday;
 mod misc;
+mod orchestrator;
 mod refiner;
 mod solver;
 mod statistics;
@@ -17,6 +18,10 @@ pub use {
     },
     fitness::{ScheduleEvaluator, ScheduleFitness},
     holiday::{Holiday, geneva_bank_holidays},
+    orchestrator::{
+        OrchestrationError, OrchestrationParameters, OrchestrationProgress, OrchestrationSolution,
+        Orchestrator,
+    },
     refiner::{RefinementParameters, Refiner, RefinerProgress},
     solver::{
         Solver, SolverError, SolverSolution,

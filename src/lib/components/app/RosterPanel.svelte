@@ -76,8 +76,8 @@
     });
 
     function toggle(index: number) {
-        const sameIndex = app.selectedPersonIndex === index;
-        app.selectedPersonIndex = sameIndex ? undefined : index;
+        const sameIndex = app.activeBrush === index;
+        app.activeBrush = sameIndex ? undefined : index;
     }
 
     function onadd() {
@@ -110,12 +110,12 @@
             <button
                 class={cn(
                     "flex items-center rounded-md border border-transparent cursor-pointer text-left transition-colors overflow-hidden min-h-[44px]",
-                    app.selectedPersonIndex === i
+                    app.activeBrush === i
                         ? "bg-accent border-border"
                         : "bg-transparent hover:bg-accent/50",
                 )}
                 onclick={() => toggle(i)}
-                aria-pressed={app.selectedPersonIndex === i}
+                aria-pressed={app.activeBrush === i}
                 title={person.name}
             >
                 <span class="w-1.25 self-stretch shrink-0 rounded-l-md {swatch}"></span>

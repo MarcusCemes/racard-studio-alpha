@@ -8,6 +8,7 @@
         Paintbrush,
         Play,
         Save,
+        Wand2,
         Zap,
     } from "@lucide/svelte";
 
@@ -42,8 +43,15 @@
         Math.min(1, (app.refinerProgress?.iteration ?? 0) / app.refinerRounds),
     );
 
+    let orchestrateRatio = $derived(() => {
+        const p = app.orchestratorProgress;
+        if (!p || p.total === 0) return 0;
+        return Math.min(1, p.refined / p.total);
+    });
+
     let solverPercent = $derived(solverRatio * 100);
     let refinerPercent = $derived(refinerRatio * 100);
+    let orchestratePercent = $derived(orchestrateRatio * 100);
 
     function onsolve() {
         confirmSolve = true;
@@ -59,6 +67,14 @@
 
     function onstoprefine() {
         app.refinerActive = false;
+    }
+
+    function onorchestrate() {
+        app.orchestratorActive = true;
+    }
+
+    function onstoporchestrate() {
+        app.orchestratorActive = false;
     }
 
     function onconfirm() {
@@ -129,7 +145,7 @@
                 Stop
             </Button>
         {:else}
-            <Button variant="outline" onclick={onsolve} disabled={app.refinerActive}>
+            <Button variant="outline" onclick={onsolve} disabled={app.refinerActive || app.orchestratorActive}>
                 <Play />
                 Solve
             </Button>
@@ -141,9 +157,21 @@
                 Stop
             </Button>
         {:else}
-            <Button onclick={onrefine} disabled={app.solverActive}>
+            <Button onclick={onrefine} disabled={app.solverActive || app.orchestratorActive}>
                 <Zap />
                 Refine
+            </Button>
+        {/if}
+
+        {#if app.orchestratorActive}
+            <Button variant="destructive" onclick={onstoporchestrate}>
+                <ProgressRing value={orchestratePercent} />
+                Stop
+            </Button>
+        {:else}
+            <Button onclick={onorchestrate} disabled={app.solverActive || app.refinerActive}>
+                <Wand2 />
+                Orchestrate
             </Button>
         {/if}
     </div>

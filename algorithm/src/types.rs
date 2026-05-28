@@ -38,6 +38,10 @@ impl Solution {
         // to the array it contains. We consume the old box and produce a new one.
         Self(unsafe { Box::from_raw(ptr) })
     }
+
+    pub fn from_slot_array(slots: &[Slot; N_DAYS]) -> Self {
+        Solution::from_boxed_array(Box::new(*slots))
+    }
 }
 
 impl SlotArray {

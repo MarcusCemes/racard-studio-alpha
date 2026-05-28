@@ -10,7 +10,8 @@ use thiserror::Error;
 use tokio::time::interval;
 
 use algorithm::{
-    Conflict, Context, ExecutionController, Holiday, InterruptRequest, N_DAYS, ProblemConfig,
+    Conflict, Context, ExecutionController, Holiday, InterruptRequest, N_DAYS, OrchestrationError,
+    OrchestrationParameters, OrchestrationProgress, OrchestrationSolution, ProblemConfig,
     ProblemInput, ProblemInputError, RefinementParameters, Refiner, RefinerProgress,
     ScheduleStatistics, ScheduleValidator, Solution, Solver, SolverError, SolverParameters,
     SolverProgress, SolverSolution, Weights,
@@ -21,6 +22,7 @@ use crate::types::Handle;
 const REPORT_PERIOD: Duration = Duration::from_millis(20);
 const SOLVER_PROGRESS_KEY: &str = "solver-progress";
 const REFINER_PROGRESS_KEY: &str = "refiner-progress";
+const ORCHESTRATE_PROGRESS_KEY: &str = "orchestrate-progress";
 
 /* === Solver === */
 
@@ -159,6 +161,62 @@ pub async fn statistics(
     Ok(ScheduleStatistics::compute(&problem, &solution, &weights))
 }
 
+/* === Orchestrate === */
+
+#[derive(Debug, Error)]
+pub enum OrchestrateError {
+    #[error("Problem input error: {0}")]
+    ProblemInput(#[from] ProblemInputError),
+
+    #[error("{0}")]
+    Orchestration(#[from] OrchestrationError),
+}
+
+impl Serialize for OrchestrateError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn orchestrate(
+    app: AppHandle,
+    problem: ProblemConfig,
+    parameters: OrchestrationParameters,
+    weights: Weights,
+) -> Result<OrchestrationSolution, OrchestrateError> {
+    let problem = ProblemInput::try_from(problem)?;
+
+    let controller = ExecutionController::default();
+    let progress = Arc::new(OrchestrationProgress::default());
+
+    {
+        let handle = app.state::<Handle<OrchestrationProgress>>();
+        let mut lock = handle.0.lock().await;
+        *lock = Some((progress.clone(), controller.clone()));
+    }
+
+    async_runtime::spawn(progress_reporter(
+        app.clone(),
+        Arc::downgrade(&progress),
+        ORCHESTRATE_PROGRESS_KEY,
+    ));
+
+    let result = async_runtime::spawn_blocking(move || {
+        algorithm::Orchestrator::execute(&problem, &weights, &parameters, &controller, &progress)
+    })
+    .await
+    .unwrap();
+
+    // Stop the progress reporter
+    interrupt_handle::<OrchestrationProgress>(&app).await;
+
+    Ok(result?)
+}
+
 /* === Progress reporter === */
 
 async fn progress_reporter<P: Serialize + Send + Sync + 'static>(
@@ -187,6 +245,7 @@ async fn progress_reporter<P: Serialize + Send + Sync + 'static>(
 pub async fn interrupt(app: AppHandle) {
     interrupt_handle::<SolverProgress>(&app).await;
     interrupt_handle::<RefinerProgress>(&app).await;
+    interrupt_handle::<OrchestrationProgress>(&app).await;
 }
 
 async fn interrupt_handle<P: Send + Sync + 'static>(app: &AppHandle) {

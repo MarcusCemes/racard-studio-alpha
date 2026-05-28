@@ -1,5 +1,4 @@
 use std::{
-    iter,
     sync::atomic::{AtomicU64, Ordering},
     thread,
 };
@@ -19,7 +18,10 @@ use crate::{
         weekday::WeekdaySolver,
         weekend::WeekendSolver,
     },
-    tools::controller::{ExecutionController, InterruptRequest},
+    tools::{
+        controller::{ExecutionController, InterruptRequest},
+        solution_storage::SolutionStorage,
+    },
     types::{Solution, Weights},
 };
 
@@ -66,12 +68,25 @@ impl Solver<'_> {
         controller: &ExecutionController,
         progress: &SolverProgress,
     ) -> Result<SolverSolution, SolverError> {
+        let mut best = self.execute_top_k(1, parameters, threads, controller, progress)?;
+        best.pop().ok_or(SolverError::NoSolutionFound)
+    }
+
+    pub fn execute_top_k(
+        &mut self,
+        top_k: u32,
+        parameters: SolverParameters,
+        threads: Option<u16>,
+        controller: &ExecutionController,
+        progress: &SolverProgress,
+    ) -> Result<Vec<SolverSolution>, SolverError> {
         let threads = threads.unwrap_or(num_cpus::get() as u16);
         let extra_threads = threads.saturating_sub(1) as usize;
 
         let root_counter = AtomicU64::new(parameters.weekend.number_permutations);
 
         let worker = Worker {
+            top_k,
             parameters: &parameters,
             progress,
             controller,
@@ -79,49 +94,34 @@ impl Solver<'_> {
             solver: self,
         };
 
-        let best_solution =
-            thread::scope(|scope| -> Result<Option<(f32, Solution)>, SolverError> {
-                // Spawn extra workers
-                let extra_workers = (0..extra_threads)
-                    .map(|_| scope.spawn(|| worker.spin()))
-                    .collect::<Vec<_>>();
+        let mut storage = SolutionStorage::with_capacity(top_k as usize);
 
-                // Use the current thread to spin one of the workers
-                let local_solution = worker.spin();
+        thread::scope(|scope| -> Result<(), SolverError> {
+            let extra_workers = (0..extra_threads)
+                .map(|_| scope.spawn(|| worker.spin()))
+                .collect::<Vec<_>>();
 
-                // Gather all solutions from the threads
-                let mut all_solutions = iter::once(local_solution).chain(
-                    extra_workers
-                        .into_iter()
-                        .map(|t| t.join().expect("thread panicked")),
-                );
+            let local = worker.spin()?;
+            storage.merge(&local);
 
-                // Find the best solution (smallest fitness)
-                all_solutions.try_fold(None, |acc, solution| match solution {
-                    Ok(solution) => {
-                        let next = match acc {
-                            None => solution,
-                            Some((old_fitness, _)) if old_fitness > solution.0 => solution,
-                            Some(acc) => acc,
-                        };
+            for handle in extra_workers {
+                let result = handle.join().expect("thread panicked")?;
+                storage.merge(&result);
+            }
 
-                        Ok(Some(next))
-                    }
+            Ok(())
+        })?;
 
-                    Err(SolverError::NoSolutionFound) => Ok(acc),
-                    Err(SolverError::Interrupted(e)) => Err(SolverError::Interrupted(e)),
-                })
-            });
+        let solutions: Vec<_> = storage
+            .read()
+            .map(|(fitness, slots)| SolverSolution {
+                fitness,
+                progress: progress.clone(),
+                solution: Solution::from_slot_array(slots),
+            })
+            .collect();
 
-        let Some((fitness, solution)) = best_solution? else {
-            return Err(SolverError::NoSolutionFound);
-        };
-
-        Ok(SolverSolution {
-            fitness,
-            progress: progress.clone(),
-            solution,
-        })
+        Ok(solutions)
     }
 }
 
@@ -131,10 +131,11 @@ struct Worker<'a> {
     parameters: &'a SolverParameters,
     progress: &'a SolverProgress,
     solver: &'a Solver<'a>,
+    top_k: u32,
 }
 
 impl Worker<'_> {
-    fn spin(&self) -> Result<(f32, Solution), SolverError> {
+    fn spin(&self) -> Result<SolutionStorage, SolverError> {
         let rng = &mut AppRng::try_from_rng(&mut SysRng).unwrap();
 
         let mut friday_solver = FridaySolver::new(&self.parameters.friday, &self.solver.context);
@@ -143,7 +144,7 @@ impl Worker<'_> {
 
         let mut weekday_solver = WeekdaySolver::new(&self.parameters.weekday, &self.solver.context);
 
-        let mut best_solution = None;
+        let mut storage = SolutionStorage::with_capacity(self.top_k as usize);
 
         loop {
             let current = self.counter.load(Ordering::Relaxed);
@@ -183,27 +184,18 @@ impl Worker<'_> {
                 {
                     self.controller.assert()?;
 
-                    let draft = &DraftSchedule {
+                    let draft = DraftSchedule {
                         fridays,
                         saturdays,
                         weekdays,
                     };
 
-                    let fitness = self.solver.evaluator.evaluate(draft).total();
-
-                    match &best_solution {
-                        None => best_solution = Some((fitness, Solution::from(draft))),
-
-                        Some((best_fitness, _)) if *best_fitness > fitness => {
-                            best_solution = Some((fitness, Solution::from(draft)));
-                        }
-
-                        _ => {}
-                    }
+                    let fitness = self.solver.evaluator.evaluate(&draft).total();
+                    storage.add(fitness, draft);
                 }
             }
         }
 
-        best_solution.ok_or(SolverError::NoSolutionFound)
+        Ok(storage)
     }
 }
