@@ -1,27 +1,13 @@
 <script lang="ts">
     import { Redo2, Undo2 } from "@lucide/svelte";
 
+    import { redo, undo } from "$lib/actions.js";
     import { app } from "$lib/app.svelte.js";
-    import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+    import { buttonVariants } from "$lib/components/ui/button/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-    import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte.js";
 
-    let undoDisabled = $derived(app.historyCursor === 0);
-    let redoDisabled = $derived(app.historyCursor === app.history.length);
-
-    useHotKeys(["z", "y"], handleHotKey, true);
-
-    function undo() {
-        if (app.historyCursor === 0) return;
-        app.historyCursor = Math.max(0, app.historyCursor - 1);
-        app.slots = app.history[app.historyCursor]!;
-    }
-
-    function redo() {
-        if (app.historyCursor === app.history.length - 1) return;
-        app.historyCursor = Math.min(app.history.length - 1, app.historyCursor + 1);
-        app.slots = app.history[app.historyCursor]!;
-    }
+    useHotKeys(null, handleHotKey, true);
 
     function handleHotKey(event: KeyboardEvent) {
         if (!event.ctrlKey) return;
@@ -33,7 +19,8 @@
 <Tooltip.Root>
     <Tooltip.Trigger
         class={buttonVariants({ variant: "ghost", size: "icon" })}
-        disabled={undoDisabled}
+        disabled={!app.history.canUndo}
+        onclick={undo}
     >
         <Undo2 />
     </Tooltip.Trigger>
@@ -44,7 +31,8 @@
 <Tooltip.Root>
     <Tooltip.Trigger
         class={buttonVariants({ variant: "ghost", size: "icon" })}
-        disabled={redoDisabled}
+        disabled={!app.history.canRedo}
+        onclick={redo}
     >
         <Redo2 />
     </Tooltip.Trigger>

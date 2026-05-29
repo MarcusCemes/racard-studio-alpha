@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { BookmarkIcon, PlusIcon, Trash2Icon } from "@lucide/svelte";
+    import { BookmarkIcon, PlusIcon } from "@lucide/svelte";
     import { toast } from "svelte-sonner";
 
     import { type Checkpoint, app } from "$lib/app.svelte.js";
@@ -33,7 +33,7 @@
     }
 
     function restoreCheckpoint(checkpoint: Checkpoint) {
-        app.slots = checkpoint.slots;
+        app.loadSlots(checkpoint.slots);
         toast.success("Checkpoint restored", { description: checkpoint.name });
     }
 </script>

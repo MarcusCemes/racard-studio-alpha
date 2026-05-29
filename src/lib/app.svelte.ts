@@ -1,6 +1,12 @@
 import { format, startOfISOWeek } from "date-fns";
 
-import { DEFAULT_BANK_HOLIDAY_HOURS, DEFAULT_WEEKDAY_HOURS, N_DAYS, N_WEEKDAYS } from "./defs.js";
+import {
+    DEFAULT_BANK_HOLIDAY_HOURS,
+    DEFAULT_WEEKDAY_HOURS,
+    N_DAYS,
+    N_WEEKDAYS,
+    Role,
+} from "./defs.js";
 import { parseConflict } from "./misc.js";
 import type {
     BankHoliday,
@@ -18,7 +24,7 @@ import type {
     SolverParameters,
     SolverProgress,
 } from "./schemas.js";
-import { NULL_SLOT, getLead, getSupport, setLead, setSupport } from "./slot.js";
+import { NULL_SLOT, type Slots, equalSlots } from "./slot.js";
 
 class AppState {
     // --- Problem inputs (raw, editable) ---
@@ -31,7 +37,7 @@ class AppState {
     skipLastShifts = $state(0);
 
     // --- Schedule ---
-    slots = $state<number[]>(Array.from({ length: N_DAYS }, () => NULL_SLOT));
+    slots = $state<Slots>(Array.from({ length: N_DAYS }, () => NULL_SLOT));
 
     // --- Parameters ---
     solverParams = $state<SolverParameters>({
@@ -80,9 +86,8 @@ class AppState {
     conflicts = $state<Conflict[]>([]);
 
     // --- History ---
-    history = $state<number[][]>([]);
-    historyCursor = $state(0);
     checkpoints = $state<Checkpoint[]>([]);
+    history = new History();
 
     formattedNames = $derived.by(() =>
         this.people.map((p) => {
@@ -126,45 +131,24 @@ class AppState {
         return map;
     });
 
-    // --- Clean mutations for the grid ---
-    setRole(dayIndex: number, role: "lead" | "support", personId: number | undefined) {
-        const current = this.slots[dayIndex];
-        if (role === "lead") {
-            this.slots[dayIndex] = setLead(current, personId);
-        } else {
-            this.slots[dayIndex] = setSupport(current, personId);
+    loadSlots = (slots: Slots) => {
+        for (let i = 0; i < slots.length; i++) {
+            this.slots[i] = slots[i];
         }
-    }
+    };
 
-    swapDays(idxA: number, idxB: number) {
-        const temp = this.slots[idxA];
-        this.slots[idxA] = this.slots[idxB];
-        this.slots[idxB] = temp;
-    }
-
-    swapRoles(idxA: number, roleA: "lead" | "support", idxB: number, roleB: "lead" | "support") {
-        const valA = this.getRoleValue(idxA, roleA);
-        const valB = this.getRoleValue(idxB, roleB);
-
-        this.setRole(idxA, roleA, valB);
-        this.setRole(idxB, roleB, valA);
-    }
-
-    private getRoleValue(dayIndex: number, role: "lead" | "support"): number | undefined {
-        const current = this.slots[dayIndex];
-        return role === "lead" ? getLead(current) : getSupport(current);
-    }
-
-    isSelected(dayIndex: number, role?: "lead" | "support"): boolean {
+    isSelected(dayIndex: number, role?: Role): boolean {
         const sel = this.selection;
         if (sel.type === "none") return false;
+
         if (role) {
             return sel.type === "role" && sel.dayIndex === dayIndex && sel.role === role;
         }
+
         return sel.type === "day" && sel.dayIndex === dayIndex;
     }
 
-    isSwapSource(dayIndex: number, role?: "lead" | "support"): boolean {
+    isSwapSource(dayIndex: number, role?: Role): boolean {
         const src = this.swapSource;
         if (src.type === "none") return false;
         if (role) {
@@ -183,9 +167,61 @@ class AppState {
         return this.selection.dayIndex % N_WEEKDAYS;
     }
 
-    restoreCheckpoint = (cp: Checkpoint) => {
-        this.slots = cp.slots;
+    restoreCheckpoint = (checkpoint: Checkpoint) => {
+        const { slots } = checkpoint;
+
+        for (let i = 0; i < slots.length; i++) {
+            this.slots[i] = slots[i];
+        }
     };
+}
+
+export class History {
+    #past = $state<Slots[]>([]);
+    #future = $state<Slots[]>([]);
+
+    // Called right BEFORE mutating the external state
+    push(current: Slots) {
+        // Optional guard: prevent pushing if no changes were made since last push
+        if (this.#past.length > 0 && equalSlots(current, this.#past[this.#past.length - 1])) {
+            return;
+        }
+
+        this.#past.push([...current]);
+        this.#future = []; // A new action invalidates the redo timeline
+    }
+
+    undo(current: Slots): Slots | undefined {
+        if (!this.canUndo) return;
+
+        // 1. Save the unrecorded present into 'future' so we can redo back to it
+        this.#future.push([...current]);
+
+        // 2. Return the most recent past state to apply to your app
+        return this.#past.pop();
+    }
+
+    redo(current: Slots): Slots | undefined {
+        if (!this.canRedo) return;
+
+        // 1. Save the current state into 'past' so we can undo back to it
+        this.#past.push([...current]);
+
+        // 2. Return the future state to apply to your app
+        return this.#future.pop();
+    }
+
+    get canUndo(): boolean {
+        return this.#past.length > 0;
+    }
+
+    get canRedo(): boolean {
+        return this.#future.length > 0;
+    }
+
+    get length(): number {
+        return this.#past.length;
+    }
 }
 
 let currentApp = $state(new AppState());
@@ -212,7 +248,7 @@ export function resetApp() {
 
 export interface Checkpoint {
     name: string;
-    slots: number[];
+    slots: Slots;
     timestamp: number;
 }
 
@@ -222,7 +258,7 @@ export type ZoomLevel = "micro" | "standard" | "detail";
 export type SelectionTarget =
     | { type: "none" }
     | { type: "day"; dayIndex: number }
-    | { type: "role"; dayIndex: number; role: "lead" | "support" };
+    | { type: "role"; dayIndex: number; role: Role };
 
 function newStartDate(): string {
     return format(startOfISOWeek(new Date()), "yyyy-MM-dd");

@@ -67,6 +67,8 @@
             <span class="text-green-500 font-semibold text-[11px]">✓ No violations</span>
         {/if}
         <Separator orientation="vertical" class="h-3.5" />
-        <span class="text-[10.5px] text-muted-foreground font-mono">Undo: 0 steps</span>
+        <span class="text-[10.5px] text-muted-foreground font-mono"
+            >Undo: {app.history.length} steps</span
+        >
     </div>
 </footer>

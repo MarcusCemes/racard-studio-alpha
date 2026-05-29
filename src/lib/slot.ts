@@ -9,9 +9,13 @@
  *   NULL_ID   = 0xF — "no person" for a single role nibble
  *   NULL_SLOT = 0xFF — "no person" for the entire slot (both roles empty)
  */
+import { N_DAYS, Role } from "./defs.js";
 
-export const NULL_ID = 0xf;
-export const NULL_SLOT = 0xff;
+export type Slot = number & { __brand: "Slot" };
+export type Slots = Slot[];
+
+export const NULL_ID = 0xf as Slot;
+export const NULL_SLOT = 0xff as Slot;
 
 /** Extract the lead person ID from a packed slot. Returns undefined if empty. */
 export function getLead(slot: number): number | undefined {
@@ -25,24 +29,37 @@ export function getSupport(slot: number): number | undefined {
     return val !== NULL_ID ? val : undefined;
 }
 
+export function getRole(slot: number, role: Role): number | undefined {
+    return role === Role.Lead ? getLead(slot) : getSupport(slot);
+}
+
 /** Return a new slot with the lead role set. Pass undefined to clear. */
-export function setLead(slot: number, personId: number | undefined): number {
+export function setLead(slot: Slot, personId: number | undefined): Slot {
     const id = personId ?? NULL_ID;
-    return (slot & 0x0f) | (id << 4);
+    return ((slot & 0xf) | (id << 4)) as Slot;
 }
 
 /** Return a new slot with the support role set. Pass undefined to clear. */
-export function setSupport(slot: number, personId: number | undefined): number {
+export function setSupport(slot: Slot, personId: number | undefined): Slot {
     const id = personId ?? NULL_ID;
-    return (slot & 0xf0) | id;
+    return ((slot & 0xf0) | id) as Slot;
+}
+
+export function setRole(slot: Slot, role: Role, personId: number | undefined): Slot {
+    return role === Role.Lead ? setLead(slot, personId) : setSupport(slot, personId);
 }
 
 /** Create a packed slot from optional lead and support person IDs. */
-export function makeSlot(lead: number | undefined, support: number | undefined): number {
-    return setSupport(setLead(0, lead), support);
+export function makeSlot(lead: number | undefined, support: number | undefined): Slot {
+    return setSupport(setLead(NULL_SLOT, lead), support);
 }
 
-/** True if the entire slot is empty (both roles unset). */
-export function isNullSlot(slot: number): boolean {
-    return slot === NULL_SLOT;
+export function equalSlots(slotsA: Slots, slotsB: Slots): boolean {
+    for (let i = 0; i < N_DAYS; i++) {
+        if (slotsA[i] !== slotsB[i]) {
+            return false;
+        }
+    }
+
+    return true;
 }

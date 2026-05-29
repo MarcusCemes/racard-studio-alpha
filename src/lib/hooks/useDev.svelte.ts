@@ -2,6 +2,7 @@ import { untrack } from "svelte";
 
 import { dev } from "$app/environment";
 import { app } from "$lib/app.svelte.js";
+import type { Slots } from "$lib/slot.js";
 
 export function useDev() {
     if (!dev) return;
@@ -26,7 +27,7 @@ export function useDev() {
             app.customOverrides = problemParameters.custom_overrides;
             app.skipLastShifts = 0;
 
-            app.slots = solution;
+            app.loadSlots(solution as Slots);
 
             app.solverParams = solverParameters;
             app.refinerParams = refinementParameters;

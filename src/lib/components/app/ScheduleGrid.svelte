@@ -1,8 +1,9 @@
 <script lang="ts">
     import { addDays, addWeeks, format, getDate, parseISO, startOfISOWeek } from "date-fns";
 
+    import { setPerson, swapDays, swapRoles } from "$lib/actions";
     import { app } from "$lib/app.svelte.js";
-    import { N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
+    import { N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, Role, WEEKDAYS } from "$lib/defs.js";
     import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
     import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
@@ -50,7 +51,7 @@
     });
 
     // Clean interaction click router
-    function handleCellClick(dayIndex: number, role?: "lead" | "support") {
+    function handleCellClick(dayIndex: number, role?: Role) {
         const mode = app.activeMode;
 
         if (mode === "select") {
@@ -60,24 +61,29 @@
                 app.selection = { type: "day", dayIndex };
             }
         } else if (mode === "set") {
-            if (!role) return;
-            app.setRole(dayIndex, role, app.activeBrush);
+            if (role && app.activeBrush) {
+                setPerson(dayIndex, role, app.activeBrush);
+            }
         } else if (mode === "erase") {
-            if (!role) return;
-            app.setRole(dayIndex, role, undefined);
+            if (role) {
+                setPerson(dayIndex, role);
+            }
         } else if (mode === "swap_day") {
             const src = app.swapSource;
+
             if (src.type === "day") {
-                app.swapDays(src.dayIndex, dayIndex);
+                swapDays(src.dayIndex, dayIndex);
                 app.swapSource = { type: "none" };
             } else {
                 app.swapSource = { type: "day", dayIndex };
             }
         } else if (mode === "swap_role") {
             if (!role) return;
+
             const src = app.swapSource;
+
             if (src.type === "role") {
-                app.swapRoles(src.dayIndex, src.role, dayIndex, role);
+                swapRoles(src.dayIndex, src.role, dayIndex, role);
                 app.swapSource = { type: "none" };
             } else {
                 app.swapSource = { type: "role", dayIndex, role };
@@ -303,48 +309,42 @@
 
 <!-- == ZOOM MODE SNIPPETS == -->
 
-{#snippet microCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
-    {@render roleHalf(day.index, lead, false, true)}
-    {@render roleHalf(day.index, support, true, true)}
+{#snippet microCell(day: DayTopology, lead?: number, support?: number)}
+    {@render roleHalf(day.index, lead, Role.Lead, true)}
+    {@render roleHalf(day.index, support, Role.Support, true)}
 {/snippet}
 
-{#snippet standardCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
-    {@render roleHalf(day.index, lead, false, false)}
-    {@render roleHalf(day.index, support, true, false)}
+{#snippet standardCell(day: DayTopology, lead?: number, support?: number)}
+    {@render roleHalf(day.index, lead, Role.Lead, false)}
+    {@render roleHalf(day.index, support, Role.Support, false)}
 {/snippet}
 
-{#snippet detailCell(day: DayTopology, lead: number | undefined, support: number | undefined)}
-    {@render roleHalf(day.index, lead, false, false)}
-    {@render roleHalf(day.index, support, true, false)}
+{#snippet detailCell(day: DayTopology, lead?: number, support?: number)}
+    {@render roleHalf(day.index, lead, Role.Lead, false)}
+    {@render roleHalf(day.index, support, Role.Support, false)}
 {/snippet}
 
 <!-- == CORE ROLE RENDERER == -->
-{#snippet roleHalf(
-    dayIndex: number,
-    personIndex: number | undefined,
-    isSupport: boolean,
-    isMicro: boolean,
-)}
+{#snippet roleHalf(dayIndex: number, personIndex: number | undefined, role: Role, isMicro: boolean)}
     {@const name = app.formattedNames[personIndex ?? -1]}
     {@const swatch =
         personIndex != null ? PERSON_COLORS[personIndex % PERSON_COLORS.length][1] : null}
-    {@const roleType = isSupport ? "support" : "lead"}
 
-    {@const isRoleSelected = app.isSelected(dayIndex, roleType)}
-    {@const isRoleSwapSource = app.isSwapSource(dayIndex, roleType)}
+    {@const isRoleSelected = app.isSelected(dayIndex, role)}
+    {@const isRoleSwapSource = app.isSwapSource(dayIndex, role)}
 
     <div
         class={cn(
             "role-half flex-1 flex items-center gap-1 relative overflow-hidden justify-center sm:justify-start",
-            !isSupport && "border-b border-border",
-            isRoleSelected && "bg-blue-500/15 ring-1 ring-blue-500/30 z-[2]",
-            isRoleSwapSource && "bg-orange-500/15 ring-1 ring-orange-500/30 border-dashed z-[2]",
+            role === Role.Lead && "border-b border-border",
+            isRoleSelected && "bg-blue-500/15 ring-1 ring-blue-500/30 z-2",
+            isRoleSwapSource && "bg-orange-500/15 ring-1 ring-orange-500/30 border-dashed z-2",
         )}
     >
         <!-- Role click triggers when not in whole-day selection modes -->
         <button
             class="absolute inset-0 w-full h-full cursor-pointer z-10 focus:outline-none"
-            onclick={() => handleCellClick(dayIndex, roleType)}
+            onclick={() => handleCellClick(dayIndex, role)}
             tabindex="-1"
             aria-label="Select Role"
         ></button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { redo, undo } from "$lib/actions.js";
     import { app } from "$lib/app.svelte.js";
     import * as Menubar from "$lib/components/ui/menubar/index.js";
 </script>
@@ -19,10 +20,10 @@
         <Menubar.Trigger>Edit</Menubar.Trigger>
 
         <Menubar.Content>
-            <Menubar.Item>
+            <Menubar.Item onclick={undo} disabled={!app.history.canUndo}>
                 Undo <Menubar.Shortcut>⌘Z</Menubar.Shortcut>
             </Menubar.Item>
-            <Menubar.Item>
+            <Menubar.Item onclick={redo} disabled={!app.history.canRedo}>
                 Redo <Menubar.Shortcut>⌘Y</Menubar.Shortcut>
             </Menubar.Item>
         </Menubar.Content>

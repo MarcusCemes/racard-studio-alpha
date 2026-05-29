@@ -86,7 +86,7 @@
         try {
             if (operation === "solve") {
                 const { solution } = await apiSolve(app, app.solverParams, app.weights);
-                app.slots = solution;
+                app.loadSlots(solution);
             } else if (operation === "refine") {
                 const [, solution] = await apiRefine(
                     app,
@@ -94,7 +94,7 @@
                     app.slots,
                     app.weights,
                 );
-                app.slots = solution;
+                app.loadSlots(solution);
             } else {
                 const { solution } = await apiOrchestrate(
                     app,
@@ -103,7 +103,7 @@
                     app.refinerParams,
                     app.weights,
                 );
-                app.slots = solution;
+                app.loadSlots(solution);
             }
         } catch (error) {
             toast.error("Failed to run operation", { description: `${error}` });
