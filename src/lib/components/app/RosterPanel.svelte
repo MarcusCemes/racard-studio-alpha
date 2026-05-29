@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { app } from "$lib/app.svelte";
+    import { app } from "$lib/app.svelte.js";
     import { N_DAYS, PERSON_COLORS } from "$lib/defs.js";
     import { NULL_SLOT, getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";

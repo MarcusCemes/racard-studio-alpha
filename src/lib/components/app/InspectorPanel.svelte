@@ -2,15 +2,12 @@
     import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
     import { LineChart } from "layerchart";
 
-    import { app } from "$lib/app.svelte";
+    import { app } from "$lib/app.svelte.js";
     import { type ChartConfig, ChartContainer } from "$lib/components/ui/chart/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
     import { DEFAULT_WEEKDAY_HOURS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
-
-    import CheckpointsPanel from "./CheckpointsPanel.svelte";
-    import ConfigurationPanel from "./ConfigurationPanel.svelte";
 
     let dayIndex = $derived(app.selectedDayOfWeek);
     let weekIndex = $derived(app.selectedWeek);
@@ -123,11 +120,7 @@
     });
 
     const panelState = $derived(
-        dayIndex != null && weekIndex != null
-            ? "day"
-            : selectedPerson
-                ? "employee"
-                : "idle",
+        dayIndex != null && weekIndex != null ? "day" : selectedPerson ? "employee" : "idle",
     );
 </script>
 
@@ -135,7 +128,7 @@
     <!-- Header -->
     <div class="px-3.5 py-3 border-b border-border shrink-0">
         {#if panelState === "idle"}
-            <span class="text-[13px] font-semibold">Configuration</span>
+            <span class="text-[13px] font-semibold">Inspector</span>
         {:else if panelState === "day" && dayData}
             <div class="flex flex-col gap-0.5">
                 <span class="text-[13px] font-semibold">
@@ -166,9 +159,13 @@
     <div class="flex-1 overflow-y-auto py-2.5">
         <!-- ── IDLE STATE ── -->
         {#if panelState === "idle"}
-            <ConfigurationPanel />
-            <Separator />
-            <CheckpointsPanel />
+            <div class="px-3.5 py-6 flex flex-col items-center justify-center text-center gap-2">
+                <span class="text-muted-foreground text-sm">Select a day or employee</span>
+                <span class="text-muted-foreground text-xs"
+                    >Press <kbd class="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">c</kbd> for
+                    settings</span
+                >
+            </div>
 
             <!-- ── DAY STATE ── -->
         {:else if panelState === "day" && dayData}

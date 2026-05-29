@@ -1,10 +1,6 @@
 <script lang="ts">
     import { app } from "$lib/app.svelte.js";
     import * as Menubar from "$lib/components/ui/menubar/index.js";
-
-    let bookmarks = $state(false);
-    let fullUrls = $state(true);
-    let profileRadioValue = $state("benoit");
 </script>
 
 <Menubar.Root>

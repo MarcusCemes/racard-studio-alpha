@@ -2,7 +2,7 @@
     import { Minus, Plus, Settings } from "@lucide/svelte";
     import { addDays, addWeeks, format, parseISO, startOfISOWeek } from "date-fns";
 
-    import { app } from "$lib/app.svelte";
+    import { app } from "$lib/app.svelte.js";
     import Badge from "$lib/components/ui/badge/badge.svelte";
     import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
     import * as Card from "$lib/components/ui/card/index.js";

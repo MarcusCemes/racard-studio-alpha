@@ -13,18 +13,20 @@
     import { toast } from "svelte-sonner";
 
     import { apiInterrupt, apiOrchestrate, apiRefine, apiSolve } from "$lib/api.js";
-    import { type ActiveMode, app } from "$lib/app.svelte";
+    import { type ActiveMode, app } from "$lib/app.svelte.js";
+    import SettingsDialog from "$lib/components/app/SettingsDialog.svelte";
+    import ToolbarHistory from "$lib/components/app/ToolbarHistory.svelte";
+    import ToolbarMenu from "$lib/components/app/ToolbarMenu.svelte";
+    import ProgressRing from "$lib/components/misc/ProgressRing.svelte";
     import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Button } from "$lib/components/ui/button/index.js";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
-    import { Separator } from "$lib/components/ui/separator/index.js";
     import { Toggle } from "$lib/components/ui/toggle/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
     import { APP_NAME } from "$lib/defs.js";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
 
-    import ProgressRing from "../misc/ProgressRing.svelte";
-    import ToolbarHistory from "./ToolbarHistory.svelte";
-    import ToolbarMenu from "./ToolbarMenu.svelte";
+    import Checkpoints from "./Checkpoints.svelte";
 
     const modes: { id: ActiveMode; label: string; icon: typeof MousePointer2; shortcut: string }[] =
         [
@@ -36,6 +38,8 @@
         ];
 
     type RequestedOperation = "solve" | "refine" | "orchestrate";
+
+    useHotKeys(null, handleHotkey);
 
     let confirmOperation = $state<RequestedOperation | null>(null);
 
@@ -131,7 +135,7 @@
         return "Auto will solve candidate schedules, refine the top results, and replace the current schedule with the best final result.";
     }
 
-    function onkeydown(event: KeyboardEvent) {
+    function handleHotkey(event: KeyboardEvent) {
         for (const m of modes) {
             if (event.key.toUpperCase() === m.shortcut) {
                 app.activeMode = m.id;
@@ -140,8 +144,6 @@
         }
     }
 </script>
-
-<svelte:window {onkeydown} />
 
 <header class="flex items-center h-11 px-3 gap-2 shrink-0 border-b border-border bg-card">
     <div class="flex-1 flex items-center gap-4">
@@ -181,6 +183,8 @@
     </div>
 
     <div class="flex-1 flex items-center justify-end gap-4">
+        <Checkpoints />
+        <SettingsDialog />
         <ToolbarHistory />
 
         <div class="flex items-center">

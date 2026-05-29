@@ -1,12 +1,15 @@
 <script lang="ts">
     import { Redo2, Undo2 } from "@lucide/svelte";
 
-    import { app } from "$lib/app.svelte";
+    import { app } from "$lib/app.svelte.js";
     import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
 
     let undoDisabled = $derived(app.historyCursor === 0);
     let redoDisabled = $derived(app.historyCursor === app.history.length);
+
+    useHotKeys(["z", "y"], handleHotKey, true);
 
     function undo() {
         if (app.historyCursor === 0) return;
@@ -20,14 +23,12 @@
         app.slots = app.history[app.historyCursor]!;
     }
 
-    function onkeydown(event: KeyboardEvent) {
+    function handleHotKey(event: KeyboardEvent) {
         if (!event.ctrlKey) return;
         if (event.key === "z") undo();
         if (event.key === "y") redo();
     }
 </script>
-
-<svelte:window {onkeydown} />
 
 <Tooltip.Root>
     <Tooltip.Trigger

@@ -37,3 +37,17 @@ export function parseConflict(conflict: Conflict): {
 export function plural(n: number, singular: string, plural?: string): string {
     return n === 1 ? singular : (plural ?? `${singular}s`);
 }
+
+export function isModifierKeyPressed(event: KeyboardEvent) {
+    return ["Shift", "Alt", "AltGraph", "Control", "Meta", "CapsLock", "Fn", "FnLock"].some((key) =>
+        event.getModifierState(key),
+    );
+}
+
+export function timestamp(): number {
+    return Math.floor(new Date().getTime() / 1000);
+}
+
+export function dateFromTimestamp(timestamp: number): Date {
+    return new Date(timestamp * 1000);
+}

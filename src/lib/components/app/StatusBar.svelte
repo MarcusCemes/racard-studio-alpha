@@ -1,7 +1,7 @@
 <script lang="ts">
     import { AlertTriangle } from "@lucide/svelte";
 
-    import { type ActiveMode, app } from "$lib/app.svelte";
+    import { type ActiveMode, app } from "$lib/app.svelte.js";
     import { Button } from "$lib/components/ui/button/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
 

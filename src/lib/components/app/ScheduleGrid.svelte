@@ -3,6 +3,7 @@
 
     import { app } from "$lib/app.svelte.js";
     import { N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
     import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
 
@@ -20,6 +21,8 @@
         mondayDate: Date;
         days: DayTopology[];
     }
+
+    useHotKeys(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], handleKeyDown);
 
     const weeks = $derived.by<WeekTopology[]>(() => {
         const baseDate = startOfISOWeek(parseISO(app.startDate));
@@ -125,10 +128,8 @@
     }
 </script>
 
-<svelte:window onkeydown={handleKeyDown} />
-
 <div
-    class="grid-container flex-1 min-w-0 flex flex-col bg-background relative overflow-hidden zoom-{app.zoomLevel}"
+    class="grid-container flex-1 min-w-0 flex flex-col bg-gray-50 relative overflow-hidden zoom-{app.zoomLevel}"
 >
     <div
         class={cn(

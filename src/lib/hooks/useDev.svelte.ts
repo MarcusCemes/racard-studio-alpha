@@ -1,7 +1,7 @@
 import { untrack } from "svelte";
 
 import { dev } from "$app/environment";
-import { app } from "$lib/app.svelte";
+import { app } from "$lib/app.svelte.js";
 
 export function useDev() {
     if (!dev) return;
