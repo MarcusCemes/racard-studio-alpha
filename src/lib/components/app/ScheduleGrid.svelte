@@ -1,7 +1,7 @@
 <script lang="ts">
     import { addDays, addWeeks, format, getDate, parseISO, startOfISOWeek } from "date-fns";
 
-    import { app } from "$lib/app.svelte";
+    import { app } from "$lib/app.svelte.js";
     import { N_DAYS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
@@ -157,6 +157,17 @@
         {#each weeks as week, wi}
             {@const isWeekSelected = app.selectedWeek === week.weekIndex}
             {@const monthLabel = weekMonthLabel(week, wi)}
+            {@const holidayPeople = app.people.filter((p) => p.holidays.includes(week.weekIndex))}
+            {@const initialsList = holidayPeople
+                .map((p) =>
+                    p.name
+                        .split(/\s+/)
+                        .map((n) => n[0] || "")
+                        .join("")
+                        .toUpperCase(),
+                )
+                .join(", ")}
+            {@const fullNamesList = holidayPeople.map((p) => p.name).join(", ")}
 
             {#if monthLabel}
                 <div class="flex items-center gap-2 pt-2.5 pb-1">
@@ -184,6 +195,14 @@
                             month: "short",
                         })}
                     </span>
+                    {#if holidayPeople.length > 0}
+                        <span
+                            class="text-[8.5px] text-muted-foreground/50 italic truncate hide-micro select-none"
+                            title="Holidays: {fullNamesList}"
+                        >
+                            Off: {initialsList}
+                        </span>
+                    {/if}
                 </div>
 
                 <!-- Day cells -->

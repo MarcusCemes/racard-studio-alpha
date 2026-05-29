@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Settings } from "@lucide/svelte";
+    import { Menu } from "@lucide/svelte";
 
     import { app, resetApp } from "$lib/app.svelte";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
@@ -23,7 +23,7 @@
         {#snippet child({ props })}
             <Tooltip.Root>
                 <Tooltip.Trigger {...props} class={buttonVariants({ variant: "ghost" })}>
-                    <Settings class="size-4" />
+                    <Menu class="size-4" />
                 </Tooltip.Trigger>
 
                 <Tooltip.Content>Settings</Tooltip.Content>

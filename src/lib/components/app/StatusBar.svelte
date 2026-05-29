@@ -45,9 +45,8 @@
             <span class="text-[10px] uppercase tracking-widest text-muted-foreground">fitness</span>
             {#each subScores as sub}
                 <span class="text-[10px] text-muted-foreground ml-1" title="{sub.label} fitness">
-                    {sub.label}: <b class="font-mono font-semibold text-foreground"
-                        >{sub.score.toFixed(1)}</b
-                    >
+                    {sub.label}:
+                    <b class="font-mono font-semibold text-foreground">{sub.score.toFixed(1)}</b>
                 </span>
             {/each}
         </div>

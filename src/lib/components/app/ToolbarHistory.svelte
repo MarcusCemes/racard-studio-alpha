@@ -50,11 +50,3 @@
 
     <Tooltip.Content>Redo (Ctrl+Y)</Tooltip.Content>
 </Tooltip.Root>
-
-<!-- <Button variant="ghost" size="icon" title="Undo (Ctrl+Z)" onclick={undo} disabled={undoDisabled}>
-    <Undo2 />
-</Button>
-
-<Button variant="ghost" size="icon" title="Redo (Ctrl+Y)" onclick={redo} disabled={redoDisabled}>
-    <Redo2 />
-</Button> -->

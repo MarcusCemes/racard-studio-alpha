@@ -33,3 +33,7 @@ export function parseConflict(conflict: Conflict): {
 
     throw new Error("Unknown conflict type");
 }
+
+export function plural(n: number, singular: string, plural?: string): string {
+    return n === 1 ? singular : (plural ?? `${singular}s`);
+}

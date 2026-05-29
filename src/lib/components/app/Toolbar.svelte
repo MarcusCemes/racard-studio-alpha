@@ -146,7 +146,7 @@
     class="flex items-center justify-between h-11 px-3 gap-2 shrink-0 border-b border-border bg-card"
 >
     <div class="flex items-center gap-1">
-        <span class="text-[13px] font-semibold whitespace-nowrap">{APP_NAME}</span>
+        <span class="text-[13px] font-extrabold whitespace-nowrap uppercase">{APP_NAME}</span>
         <Separator orientation="vertical" class="h-5 mx-1" />
         <div
             class="flex items-center gap-0.5 rounded-md border p-0.5"
@@ -181,8 +181,8 @@
     <div class="flex items-center gap-1">
         <ToolbarHistory />
         <ToolbarSettings />
-        <Separator orientation="vertical" class="h-5 mx-1" />
-        <div class="w-2"></div>
+
+        <div class="w-8"></div>
 
         <div class="flex items-center">
             {#if activeOp}

@@ -1,17 +1,7 @@
 <script lang="ts">
-    import { Minus, Pencil, Plus } from "@lucide/svelte";
-
     import { app } from "$lib/app.svelte";
-    import { Button } from "$lib/components/ui/button/index.js";
-    import { Toggle } from "$lib/components/ui/toggle/index.js";
-    import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-    import {
-        MAX_PEOPLE,
-        MIN_PEOPLE,
-        N_DAYS,
-        PERSON_COLORS,
-    } from "$lib/defs.js";
-import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
+    import { N_DAYS, PERSON_COLORS } from "$lib/defs.js";
+    import { NULL_SLOT, getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
 
     interface EmpStats {
@@ -21,8 +11,6 @@ import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
         supportShifts: number;
         hasViolations: boolean;
     }
-
-    let edit = $state(false);
 
     const stats = $derived.by(() => {
         const map = new Map<number, EmpStats>();
@@ -45,11 +33,17 @@ import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
             const supp = getSupport(slot);
             if (lead != null) {
                 const entry = map.get(lead);
-                if (entry) { entry.totalShifts++; entry.leadShifts++; }
+                if (entry) {
+                    entry.totalShifts++;
+                    entry.leadShifts++;
+                }
             }
             if (supp != null) {
                 const entry = map.get(supp);
-                if (entry) { entry.totalShifts++; entry.supportShifts++; }
+                if (entry) {
+                    entry.totalShifts++;
+                    entry.supportShifts++;
+                }
             }
         }
 
@@ -78,20 +72,6 @@ import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
     function toggle(index: number) {
         const sameIndex = app.activeBrush === index;
         app.activeBrush = sameIndex ? undefined : index;
-    }
-
-    function onadd() {
-        const length = app.people.length;
-        if (length >= MAX_PEOPLE) return;
-
-        app.people.push({ holidays: [], name: `Employee ${length + 1}`, rate: 80 });
-    }
-
-    function onremove() {
-        const length = app.people.length;
-        if (length <= MIN_PEOPLE) return;
-
-        app.people.pop();
     }
 </script>
 
@@ -147,35 +127,5 @@ import { getLead, getSupport, NULL_SLOT } from "$lib/slot.js";
                 {/if}
             </button>
         {/each}
-
-        <div class="mt-4 flex justify-center gap-2">
-            <Tooltip.Root>
-                <Tooltip.Trigger>
-                    <Button
-                        class="flex-1"
-                        variant="secondary"
-                        onclick={onremove}
-                        disabled={app.people.length <= MIN_PEOPLE}
-                    >
-                        <Minus class="size-4" />
-                    </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Remove employee</Tooltip.Content>
-            </Tooltip.Root>
-
-            <Tooltip.Root>
-                <Tooltip.Trigger>
-                    <Button
-                        class="flex-1"
-                        variant="secondary"
-                        onclick={onadd}
-                        disabled={app.people.length >= MAX_PEOPLE}
-                    >
-                        <Plus class="size-4" />
-                    </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>Add employee</Tooltip.Content>
-            </Tooltip.Root>
-        </div>
     </div>
 </aside>

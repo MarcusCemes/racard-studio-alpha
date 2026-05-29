@@ -1,17 +1,18 @@
 <script lang="ts">
-    import { AlertTriangle, ChevronDown, ChevronRight } from "@lucide/svelte";
+    import { ChevronDown, ChevronRight } from "@lucide/svelte";
     import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
     import { LineChart } from "layerchart";
 
     import { app } from "$lib/app.svelte";
-    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
-    import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+    import { Button } from "$lib/components/ui/button/index.js";
     import { type ChartConfig, ChartContainer } from "$lib/components/ui/chart/index.js";
     import { Input } from "$lib/components/ui/input/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
-    import { DEFAULT_WEEKDAY_HOURS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS, Role } from "$lib/defs.js";
+    import { DEFAULT_WEEKDAY_HOURS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
+
+    import EmployeeDialog from "./EmployeeDialog.svelte";
 
     let openSections: Record<string, boolean> = $state({
         problem: true,
@@ -205,6 +206,8 @@
                             <span class="text-[11.5px] font-mono"
                                 >{app.people.length} configured</span
                             >
+
+                            <EmployeeDialog />
                         </div>
                     </div>
                 {/if}
