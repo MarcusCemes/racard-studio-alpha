@@ -10,9 +10,7 @@
  *   NULL_SLOT = 0xFF — "no person" for the entire slot (both roles empty)
  */
 import { N_DAYS, Role } from "./defs.js";
-
-export type Slot = number & { __brand: "Slot" };
-export type Slots = Slot[];
+import type { Slot } from "./schemas.js";
 
 export const NULL_ID = 0xf as Slot;
 export const NULL_SLOT = 0xff as Slot;

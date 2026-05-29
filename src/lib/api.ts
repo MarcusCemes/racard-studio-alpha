@@ -2,31 +2,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { addDays, format, getISODay } from "date-fns";
 
 import { Role } from "$lib/defs.js";
-import type {
-    BankHoliday,
-    Conflict,
-    CustomOverride,
-    FitnessWeights,
-    Holiday,
-    OrchestrationParameters,
-    OrchestrationRequest,
-    OrchestrationSolution,
-    Person,
-    ProblemConfig,
-    ProblemOverrides,
-    RefinementParameters,
-    Schedule,
-    ScheduleStatistics,
-    Solution,
-    SolverParameters,
-    SolverSolution,
-} from "$lib/schemas.js";
+import type * as T from "$lib/schemas.js";
 
 function buildOverrides(
-    bankHolidays: BankHoliday[],
-    customOverrides: CustomOverride[],
+    bankHolidays: T.BankHoliday[],
+    customOverrides: T.CustomOverride[],
     bankHolidayDefaultHours: [number, number][],
-): ProblemOverrides {
+): T.ProblemOverrides {
     const leadMap = new Map<string, number>();
     const supportMap = new Map<string, number>();
 
@@ -57,13 +39,13 @@ function buildOverrides(
 
 export function buildProblemConfig(input: {
     startDate: string;
-    people: Person[];
+    people: T.Person[];
     weekdayHours: [number, number][];
     bankHolidayDefaultHours: [number, number][];
-    bankHolidays: BankHoliday[];
-    customOverrides: CustomOverride[];
+    bankHolidays: T.BankHoliday[];
+    customOverrides: T.CustomOverride[];
     skipLastShifts: number;
-}): ProblemConfig {
+}): T.ProblemConfig {
     return {
         start_date: input.startDate,
         people: input.people,
@@ -80,17 +62,17 @@ export function buildProblemConfig(input: {
 export async function apiSolve(
     problem: {
         startDate: string;
-        people: Person[];
+        people: T.Person[];
         weekdayHours: [number, number][];
         bankHolidayDefaultHours: [number, number][];
-        bankHolidays: BankHoliday[];
-        customOverrides: CustomOverride[];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
         skipLastShifts: number;
     },
-    solverParams: SolverParameters,
-    weights: FitnessWeights,
+    solverParams: T.SolverParameters,
+    weights: T.FitnessWeights,
 ) {
-    return await invoke<SolverSolution>("solve", {
+    return await invoke<T.SolverSolution>("solve", {
         problem: buildProblemConfig(problem),
         solver_parameters: solverParams,
         weights,
@@ -100,18 +82,18 @@ export async function apiSolve(
 export async function apiRefine(
     problem: {
         startDate: string;
-        people: Person[];
+        people: T.Person[];
         weekdayHours: [number, number][];
         bankHolidayDefaultHours: [number, number][];
-        bankHolidays: BankHoliday[];
-        customOverrides: CustomOverride[];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
         skipLastShifts: number;
     },
-    refinerParams: RefinementParameters,
-    solution: Solution,
-    weights: FitnessWeights,
+    refinerParams: T.RefinementParameters,
+    solution: T.Solution,
+    weights: T.FitnessWeights,
 ) {
-    return await invoke<[number, Solution]>("refine", {
+    return await invoke<[number, T.Solution]>("refine", {
         problem: buildProblemConfig(problem),
         parameters: refinerParams,
         solution,
@@ -122,25 +104,25 @@ export async function apiRefine(
 export async function apiOrchestrate(
     problem: {
         startDate: string;
-        people: Person[];
+        people: T.Person[];
         weekdayHours: [number, number][];
         bankHolidayDefaultHours: [number, number][];
-        bankHolidays: BankHoliday[];
-        customOverrides: CustomOverride[];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
         skipLastShifts: number;
     },
-    orchestrateParams: OrchestrationParameters,
-    solverParams: SolverParameters,
-    refinerParams: RefinementParameters,
-    weights: FitnessWeights,
+    orchestrateParams: T.OrchestrationParameters,
+    solverParams: T.SolverParameters,
+    refinerParams: T.RefinementParameters,
+    weights: T.FitnessWeights,
 ) {
-    const parameters: OrchestrationRequest = {
+    const parameters: T.OrchestrationRequest = {
         top_k: orchestrateParams.top_k,
         solver: solverParams,
         refiner: refinerParams,
     };
 
-    return await invoke<OrchestrationSolution>("orchestrate", {
+    return await invoke<T.OrchestrationSolution>("orchestrate", {
         problem: buildProblemConfig(problem),
         parameters,
         weights,
@@ -150,17 +132,17 @@ export async function apiOrchestrate(
 export async function apiStatistics(
     problem: {
         startDate: string;
-        people: Person[];
+        people: T.Person[];
         weekdayHours: [number, number][];
         bankHolidayDefaultHours: [number, number][];
-        bankHolidays: BankHoliday[];
-        customOverrides: CustomOverride[];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
         skipLastShifts: number;
     },
-    solution: Solution,
-    weights: FitnessWeights,
+    solution: T.Solution,
+    weights: T.FitnessWeights,
 ) {
-    return await invoke<ScheduleStatistics>("statistics", {
+    return await invoke<T.ScheduleStatistics>("statistics", {
         problem: buildProblemConfig(problem),
         solution,
         weights,
@@ -172,28 +154,28 @@ export async function apiInterrupt() {
 }
 
 export async function apiBankHolidays(start_date: string) {
-    return await invoke<[string, Holiday][]>("geneva_bank_holidays", { start_date });
+    return await invoke<[string, T.Holiday][]>("geneva_bank_holidays", { start_date });
 }
 
 export async function apiValidate(
     problem: {
         startDate: string;
-        people: Person[];
+        people: T.Person[];
         weekdayHours: [number, number][];
         bankHolidayDefaultHours: [number, number][];
-        bankHolidays: BankHoliday[];
-        customOverrides: CustomOverride[];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
         skipLastShifts: number;
     },
-    solution: Solution,
-): Promise<Conflict[]> {
+    solution: T.Solution,
+): Promise<T.Conflict[]> {
     return await invoke("validate", {
         problem: buildProblemConfig(problem),
         solution,
     });
 }
 
-export async function exportSchedule(schedule: Schedule) {
+export async function exportSchedule(schedule: T.Schedule) {
     await invoke("export_schedule", { schedule });
 }
 

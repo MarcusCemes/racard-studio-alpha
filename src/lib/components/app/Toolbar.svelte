@@ -145,7 +145,7 @@
     }
 </script>
 
-<header class="flex items-center h-11 px-3 gap-2 shrink-0 border-b border-border bg-card">
+<header class="flex items-center h-12 px-3 gap-2 shrink-0 border-b border-border bg-card">
     <div class="flex-1 flex items-center gap-4">
         <span class="text-[13px] font-extrabold whitespace-nowrap uppercase">{APP_NAME}</span>
         <ToolbarMenu />

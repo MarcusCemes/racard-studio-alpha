@@ -29,7 +29,9 @@ pub use {
         defs::{PhaseParameters, SolverParameters},
         types::{SolverProgress, SolverStage},
     },
-    statistics::{FinalStatistics, ScheduleStatistics, WeeklyBreakdown, WeeklyHeatmap},
+    statistics::{
+        FinalPersonStats, GlobalStatistics, PersonStatistics, ScheduleStatistics, WeeklyPersonStats,
+    },
     tools::controller::{ExecutionController, InterruptRequest},
     types::{DayIdx, PersonIdx, Role, ScheduleView, Slot, SlotArray, Solution, WeekIdx, Weights},
     utils::sample_people,

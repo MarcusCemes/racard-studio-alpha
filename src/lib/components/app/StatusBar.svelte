@@ -1,19 +1,10 @@
 <script lang="ts">
     import { AlertTriangle } from "@lucide/svelte";
 
-    import { type ActiveMode, app } from "$lib/app.svelte.js";
+    import { app } from "$lib/app.svelte.js";
+    import StatusMonitor from "$lib/components/misc/StatusMonitor.svelte";
     import { Button } from "$lib/components/ui/button/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
-
-    import StatusMonitor from "../misc/StatusMonitor.svelte";
-
-    const modeLabels: Record<ActiveMode, string> = {
-        select: "Select",
-        set: "Set",
-        swap_day: "Swap Day",
-        swap_role: "Swap Role",
-        erase: "Erase",
-    };
 
     let fitnessTotal = $derived(
         app.statistics?.fitness
@@ -33,8 +24,6 @@
 
     let violationCount = $derived(app.conflicts.length);
 </script>
-
-<StatusMonitor />
 
 <footer
     class="flex items-center justify-between h-8 px-3.5 shrink-0 border-t border-border bg-card text-[11px]"
@@ -70,5 +59,7 @@
         <span class="text-[10.5px] text-muted-foreground font-mono"
             >Undo: {app.history.length} steps</span
         >
+
+        <StatusMonitor />
     </div>
 </footer>

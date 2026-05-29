@@ -1,21 +1,32 @@
 <script lang="ts">
-    import { apiStatistics, apiValidate, buildProblemConfig } from "$lib/api.js";
+    import { apiStatistics, apiValidate } from "$lib/api.js";
     import { app } from "$lib/app.svelte.js";
+
+    let busy = $state(false);
 
     // Refresh statistics and conflicts whenever slots change
     $effect(() => {
-        const controller = new AbortController();
-        const slots = app.slots;
+        busy = true;
 
-        Promise.all([apiStatistics(app, slots, app.weights), apiValidate(app, slots)]).then(
-            ([statistics, conflicts]) => {
-                if (!controller.signal.aborted) {
-                    app.statistics = statistics;
-                    app.conflicts = conflicts;
+        let aborted = false;
+
+        Promise.all([apiStatistics(app, app.slots, app.weights), apiValidate(app, app.slots)])
+            .then(([statistics, conflicts]) => {
+                if (aborted) {
+                    return;
                 }
-            },
-        );
 
-        return () => controller.abort();
+                app.statistics = statistics;
+                app.conflicts = conflicts;
+            })
+            .finally(() => {
+                if (!aborted) {
+                    busy = false;
+                }
+            });
+
+        return () => (aborted = true);
     });
 </script>
+
+<div class="size-2 rounded-full {busy ? 'bg-orange-600' : 'bg-green-600'}"></div>

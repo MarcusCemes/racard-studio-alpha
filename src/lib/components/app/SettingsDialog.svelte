@@ -6,18 +6,21 @@
         Crown,
         FileText,
         Flame,
+        Minus,
         Pencil,
         Plus,
         RefreshCw,
         Scale,
         Settings,
         Shield,
+        Users,
         X,
     } from "@lucide/svelte";
-    import { format, getISODay, parseISO } from "date-fns";
+    import { addDays, addWeeks, format, getISODay, parseISO, startOfISOWeek } from "date-fns";
 
     import { apiBankHolidays } from "$lib/api.js";
     import { app } from "$lib/app.svelte.js";
+    import Badge from "$lib/components/ui/badge/badge.svelte";
     import { Button } from "$lib/components/ui/button/index.js";
     import * as Dialog from "$lib/components/ui/dialog/index.js";
     import * as Field from "$lib/components/ui/field/index.js";
@@ -25,17 +28,28 @@
     import ScrollArea from "$lib/components/ui/scroll-area/scroll-area.svelte";
     import * as Separator from "$lib/components/ui/separator/index.js";
     import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+    import { Slider } from "$lib/components/ui/slider/index.js";
     import { Switch } from "$lib/components/ui/switch/index.js";
     import * as Toggle from "$lib/components/ui/toggle/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-    import { HOLIDAY_NAMES, WEEKDAYS } from "$lib/defs.js";
+    import {
+        HOLIDAY_NAMES,
+        MAX_PEOPLE,
+        MIN_PEOPLE,
+        N_WEEKS,
+        PERSON_COLORS,
+        WEEKDAYS,
+    } from "$lib/defs.js";
     import { useHotKey } from "$lib/hooks/useHotkey.svelte";
+    import { plural } from "$lib/misc";
+    import type { Person } from "$lib/schemas.js";
 
     import Kbd from "../ui/kbd/kbd.svelte";
 
     /* === Nav === */
     const nav = [
         { name: "Details", icon: FileText },
+        { name: "Employees", icon: Users },
         { name: "Hours", icon: Clock },
         { name: "Overrides", icon: Pencil },
         { name: "Solver", icon: Cpu },
@@ -48,6 +62,45 @@
     let activeTab = $state("Details");
 
     useHotKey("c", () => (open = !open));
+
+    /* === Employees === */
+    const weekRanges = $derived.by(() => {
+        try {
+            const baseDate = startOfISOWeek(parseISO(app.startDate));
+            const ranges = [];
+            for (let w = 0; w < N_WEEKS; w++) {
+                const monday = addWeeks(baseDate, w);
+                const sunday = addDays(monday, 6);
+                ranges.push({
+                    index: w,
+                    dateRange: `${format(monday, "d MMM")} \u2013 ${format(sunday, "d MMM yyyy")}`,
+                });
+            }
+            return ranges;
+        } catch (e) {
+            console.error("Error calculating week ranges:", e);
+            return [];
+        }
+    });
+
+    function onadd() {
+        const length = app.people.length;
+        if (length >= MAX_PEOPLE) return;
+        app.people.push({ holidays: [], name: `Employee ${length + 1}`, rate: 80 });
+    }
+
+    function onremove() {
+        if (app.people.length <= MIN_PEOPLE) return;
+        app.people.pop();
+    }
+
+    function toggleHoliday(person: Person, weekIndex: number) {
+        if (person.holidays.includes(weekIndex)) {
+            person.holidays = person.holidays.filter((w) => w !== weekIndex);
+        } else {
+            person.holidays = [...person.holidays, weekIndex].sort((a, b) => a - b);
+        }
+    }
 
     /* === Bank holidays === */
     async function refetchBankHolidays() {
@@ -213,7 +266,8 @@
                                         <Field.Content>
                                             <Field.Label>Employees</Field.Label>
                                             <Field.Description>
-                                                Manage employees in the Employees dialog.
+                                                See the Employees tab to configure names, rates, and
+                                                holidays.
                                             </Field.Description>
                                         </Field.Content>
                                         <span class="text-sm font-mono tabular-nums">
@@ -235,6 +289,146 @@
                                             class="w-24 font-mono"
                                         />
                                     </Field.Field>
+                                </div>
+                            </Field.FieldSet>
+                        {/if}
+
+                        <!-- ═══ Employees ═══ -->
+                        {#if activeTab === "Employees"}
+                            <Field.FieldSet>
+                                <Field.Legend>Manage employees</Field.Legend>
+                                <Field.Description>
+                                    Configure names, rates, and scheduled holidays.
+                                </Field.Description>
+
+                                <div class="flex flex-col gap-3">
+                                    {#each app.people as person, i}
+                                        {@const swatch = PERSON_COLORS[i % PERSON_COLORS.length][1]}
+
+                                        <div class="rounded-lg border bg-card p-4">
+                                            <div class="flex gap-4">
+                                                <!-- Name & Rate -->
+                                                <div
+                                                    class="flex flex-col gap-3 min-w-0 w-48 shrink-0"
+                                                >
+                                                    <div class="flex items-center gap-2.5">
+                                                        <span
+                                                            class="size-3.5 rounded {swatch} shrink-0"
+                                                        ></span>
+                                                        <Input
+                                                            type="text"
+                                                            bind:value={person.name}
+                                                            placeholder="Full name"
+                                                            class="flex-1 h-9 text-[13px] font-medium"
+                                                        />
+                                                    </div>
+
+                                                    <div class="flex items-center gap-2 px-1">
+                                                        <Field.Label class="text-xs shrink-0"
+                                                            >Rate</Field.Label
+                                                        >
+                                                        <Slider
+                                                            bind:value={person.rate}
+                                                            type="single"
+                                                            min={5}
+                                                            max={100}
+                                                            step={5}
+                                                        />
+                                                        <span
+                                                            class="font-mono text-xs text-muted-foreground w-8 text-right shrink-0"
+                                                            >{person.rate}%</span
+                                                        >
+                                                    </div>
+                                                </div>
+
+                                                <Separator.Root
+                                                    orientation="vertical"
+                                                    class="mx-2"
+                                                />
+
+                                                <!-- Holiday grid -->
+                                                <div class="flex-1 min-w-0">
+                                                    <div
+                                                        class="flex items-center justify-between mb-1.5"
+                                                    >
+                                                        <Field.Label class="text-xs"
+                                                            >Holidays</Field.Label
+                                                        >
+                                                        {#if person.holidays.length > 0}
+                                                            <Badge
+                                                                variant="secondary"
+                                                                class="text-[10px]"
+                                                            >
+                                                                {person.holidays.length}
+                                                                {plural(
+                                                                    person.holidays.length,
+                                                                    "week",
+                                                                )} off
+                                                            </Badge>
+                                                        {/if}
+                                                    </div>
+
+                                                    <div
+                                                        class="grid gap-0.5"
+                                                        style="grid-template-columns: repeat(12, minmax(0, 1fr))"
+                                                    >
+                                                        {#each weekRanges as week}
+                                                            {@const isHoliday =
+                                                                person.holidays.includes(
+                                                                    week.index,
+                                                                )}
+
+                                                            <Tooltip.Root>
+                                                                <Tooltip.Trigger>
+                                                                    {#snippet child({ props })}
+                                                                        <Toggle.Root
+                                                                            {...props}
+                                                                            bind:pressed={
+                                                                                () => isHoliday,
+                                                                                () =>
+                                                                                    toggleHoliday(
+                                                                                        person,
+                                                                                        week.index,
+                                                                                    )
+                                                                            }
+                                                                            size="sm"
+                                                                            class="text-[10px]"
+                                                                        >
+                                                                            {week.index + 1}
+                                                                        </Toggle.Root>
+                                                                    {/snippet}
+                                                                </Tooltip.Trigger>
+
+                                                                <Tooltip.Content>
+                                                                    {week.dateRange}
+                                                                </Tooltip.Content>
+                                                            </Tooltip.Root>
+                                                        {/each}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                </div>
+
+                                <div class="flex justify-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onclick={onremove}
+                                        disabled={app.people.length <= MIN_PEOPLE}
+                                    >
+                                        <Minus class="size-4" />
+                                        Remove employee
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        onclick={onadd}
+                                        disabled={app.people.length >= MAX_PEOPLE}
+                                    >
+                                        <Plus class="size-4" />
+                                        Add Employee
+                                    </Button>
                                 </div>
                             </Field.FieldSet>
                         {/if}

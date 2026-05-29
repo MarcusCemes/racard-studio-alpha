@@ -9,9 +9,11 @@ import {
 } from "$lib/defs.js";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const slotsSchema = z.array(z.number()).length(N_DAYS);
+const slotSchema = z.number().brand<"Slot">();
+const slotsSchema = z.array(slotSchema).length(N_DAYS);
 
-export type Slots = number[];
+export type Slot = z.infer<typeof slotSchema>;
+export type Slots = z.infer<typeof slotsSchema>;
 
 /* === Core Types === */
 
@@ -226,29 +228,34 @@ export const solverErrorSchema = z.union([
 
 /* === Statistics === */
 
-export type WeeklyBreakdown = z.infer<typeof weeklyBreakdownSchema>;
-export const weeklyBreakdownSchema = z.object({
-    hours_by_role: z
-        .array(z.array(z.array(z.number()).length(N_WEEKS)).length(2))
-        .length(MAX_PEOPLE),
-    cumulative_hours: z.array(z.array(z.number()).length(N_WEEKS)).length(MAX_PEOPLE),
+export type WeeklyPersonStats = z.infer<typeof weeklyPersonStatsSchema>;
+export const weeklyPersonStatsSchema = z.object({
+    hours_by_role: z.tuple([z.number(), z.number()]),
+    cumulative_hours: z.number(),
+    slots_count: z.number().int(),
 });
 
-export type WeeklyHeatmap = z.infer<typeof weeklyHeatmapSchema>;
-export const weeklyHeatmapSchema = z.object({
-    slots_per_week: z.array(z.array(z.number()).length(N_WEEKS)).length(MAX_PEOPLE),
+export type FinalPersonStats = z.infer<typeof finalPersonStatsSchema>;
+export const finalPersonStatsSchema = z.object({
+    total_hours_worked: z.number(),
+    expected_hours: z.number(),
+    lead_fridays: z.number().int(),
+    support_fridays: z.number().int(),
+    long_weekends: z.number().int(),
+    short_weekends: z.number().int(),
 });
 
-export type FinalStatistics = z.infer<typeof finalStatisticsSchema>;
-export const finalStatisticsSchema = z.object({
-    total_hours_worked: z.array(z.number()).length(MAX_PEOPLE),
-    expected_hours: z.array(z.number()).length(MAX_PEOPLE),
+export type PersonStatistics = z.infer<typeof personStatisticsSchema>;
+export const personStatisticsSchema = z.object({
+    name: z.string(),
+    weeks: z.array(weeklyPersonStatsSchema).length(N_WEEKS),
+    totals: finalPersonStatsSchema,
+});
+
+export type GlobalStatistics = z.infer<typeof globalStatisticsSchema>;
+export const globalStatisticsSchema = z.object({
     total_available_hours: z.number(),
     theoretical_hours: z.number(),
-    lead_fridays: z.array(z.number()).length(MAX_PEOPLE),
-    support_fridays: z.array(z.number()).length(MAX_PEOPLE),
-    long_weekends: z.array(z.number()).length(MAX_PEOPLE),
-    short_weekends: z.array(z.number()).length(MAX_PEOPLE),
 });
 
 export type ScheduleFitness = z.infer<typeof scheduleFitnessSchema>;
@@ -264,9 +271,8 @@ export const scheduleFitnessSchema = z.object({
 
 export type ScheduleStatistics = z.infer<typeof scheduleStatisticsSchema>;
 export const scheduleStatisticsSchema = z.object({
-    weekly_breakdown: weeklyBreakdownSchema,
-    weekly_heatmap: weeklyHeatmapSchema,
-    final_statistics: finalStatisticsSchema,
+    people: z.array(personStatisticsSchema),
+    summary: globalStatisticsSchema,
     fitness: scheduleFitnessSchema,
 });
 

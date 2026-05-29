@@ -1,137 +1,180 @@
-use std::array;
-
 use chrono::Weekday;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use strum::{EnumCount, IntoEnumIterator};
 
 use crate::{
     defs::*,
     fitness::{ScheduleEvaluator, ScheduleFitness},
-    misc::BoxedArray,
-    types::{HourAssignments, PersonIdx, Role, Slot, SlotArrayRef, WeekIdx, Weights},
+    types::{HourAssignments, Role, Slot, SlotArrayRef, WeekIdx, Weights},
 };
 
 /// Complete statistics for a schedule
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ScheduleStatistics {
-    pub weekly_breakdown: WeeklyBreakdown,
-    pub weekly_heatmap: WeeklyHeatmap,
-    pub final_statistics: FinalStatistics,
+    /// Statistics for each person in the problem (in order)
+    pub people: Vec<PersonStatistics>,
+    /// Global metrics
+    pub summary: GlobalStatistics,
+    /// Detailed fitness breakdown
     pub fitness: ScheduleFitness,
 }
 
-/// Per-week hours breakdown by person and role
-#[serde_as]
-#[derive(Debug, Serialize)]
-pub struct WeeklyBreakdown {
-    /// Hours worked per person, per role, per week
-    /// Indexed as: [person][role][week]
-    #[serde_as(as = "Box<[[[_; N_WEEKS]; Role::COUNT]; MAX_PEOPLE]>")]
-    pub hours_by_role: Box<[[[f32; N_WEEKS]; Role::COUNT]; MAX_PEOPLE]>,
-
-    /// Cumulative hours per person through each week.
-    /// Indexed as: [person][week]
-    #[serde_as(as = "Box<[[_; N_WEEKS]; MAX_PEOPLE]>")]
-    pub cumulative_hours: Box<[[f32; N_WEEKS]; MAX_PEOPLE]>,
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct PersonStatistics {
+    pub name: String,
+    /// Stats for each of the N_WEEKS
+    pub weeks: Vec<WeeklyPersonStats>,
+    pub totals: FinalPersonStats,
 }
 
-impl Default for WeeklyBreakdown {
-    fn default() -> Self {
-        Self {
-            hours_by_role: BoxedArray::from_zeroed(),
-            cumulative_hours: BoxedArray::from_zeroed(),
-        }
-    }
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct WeeklyPersonStats {
+    /// Hours worked in each role this week
+    pub hours_by_role: [f32; Role::COUNT],
+    /// Total hours worked up to and including this week (includes holiday credit)
+    pub cumulative_hours: f32,
+    /// Number of working slots this week (excluding phantom shifts)
+    pub slots_count: u8,
 }
 
-/// Heatmap showing work intensity
-#[serde_as]
-#[derive(Debug, Serialize)]
-pub struct WeeklyHeatmap {
-    /// Number of working days per person per week
-    /// Indexed as: [person][week]
-    #[serde_as(as = "Box<[[_; N_WEEKS]; MAX_PEOPLE]>")]
-    pub slots_per_week: Box<[[u8; N_WEEKS]; MAX_PEOPLE]>,
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct FinalPersonStats {
+    pub total_hours_worked: f32,
+    pub expected_hours: f32,
+    pub lead_fridays: u8,
+    pub support_fridays: u8,
+    pub long_weekends: u8,   // Saturday Lead
+    pub short_weekends: u8,  // Saturday Support
 }
 
-impl Default for WeeklyHeatmap {
-    fn default() -> Self {
-        Self {
-            slots_per_week: BoxedArray::from_zeroed(),
-        }
-    }
-}
-
-/// Overall summary statistics
 #[derive(Debug, Serialize, Deserialize)]
-pub struct FinalStatistics {
-    /// Total hours worked by each person
-    pub total_hours_worked: [f32; MAX_PEOPLE],
-
-    /// Expected hours for each person (rate * FULL_TIME * N_WEEKS)
-    pub expected_hours: [f32; MAX_PEOPLE],
-
-    /// Total hours available across all slots in the schedule
+pub struct GlobalStatistics {
     pub total_available_hours: f32,
-
-    /// Theoretical total based on sum of all rates
     pub theoretical_hours: f32,
-
-    /// Number of fridays worked as lead
-    pub lead_fridays: [u8; MAX_PEOPLE],
-
-    /// Number of fridays worked as support
-    pub support_fridays: [u8; MAX_PEOPLE],
-
-    /// Number of long weekends worked (Saturday lead)
-    pub long_weekends: [u8; MAX_PEOPLE],
-
-    /// Number of short weekends worked (Saturday support)
-    pub short_weekends: [u8; MAX_PEOPLE],
 }
 
 impl ScheduleStatistics {
     /// Compute all statistics for a completed schedule
     pub fn compute(problem: &ProblemInput, schedule: &[Slot; N_DAYS], weights: &Weights) -> Self {
-        let skip_last_shifts = problem.skip_last_shifts;
-
         let hour_assignments = HourAssignments::new(
             problem.start_date,
             &problem.overrides,
             &problem.weekday_hours,
-            skip_last_shifts,
+            problem.skip_last_shifts,
         );
 
-        let weekly_breakdown = Self::compute_weekly_breakdown(problem, schedule, &hour_assignments);
+        let n_people = problem.people.len();
+        let phantom_shifts = Self::phantom_shifts(problem.skip_last_shifts);
 
-        let weekly_heatmap =
-            Self::compute_weekly_heatmap(schedule, skip_last_shifts, problem.people.len());
+        // Pre-calculate holiday weeks for each person
+        let holiday_weeks: Vec<[bool; N_WEEKS]> = problem
+            .people
+            .iter()
+            .map(|p| {
+                let mut weeks = [false; N_WEEKS];
+                for &hw in &p.holidays {
+                    if (hw as usize) < N_WEEKS {
+                        weeks[hw as usize] = true;
+                    }
+                }
+                weeks
+            })
+            .collect();
 
-        let final_statistics = Self::compute_final_statistics(
-            problem,
-            schedule,
-            &hour_assignments,
-            &weekly_breakdown,
-            skip_last_shifts,
-            problem.people.len(),
-        );
+        let mut people_stats: Vec<PersonStatistics> = problem
+            .people
+            .iter()
+            .map(|p| PersonStatistics {
+                name: p.name.clone(),
+                weeks: Vec::with_capacity(N_WEEKS),
+                totals: FinalPersonStats {
+                    expected_hours: p.rate.weekly_hours() * N_WEEKS as f32,
+                    ..Default::default()
+                },
+            })
+            .collect();
+
+        let mut running_totals = vec![0.0f32; n_people];
+        let fri_offset = Weekday::Fri.num_days_from_monday() as usize;
+        let sat_offset = Weekday::Sat.num_days_from_monday() as usize;
+
+        for week in WeekIdx::iter() {
+            let week_idx = week.get() as usize;
+            let mut weekly_hours = vec![[0.0f32; Role::COUNT]; n_people];
+            let mut weekly_slots = vec![0u8; n_people];
+
+            for day_offset in 0..N_WEEKDAYS {
+                let day_idx = week_idx * N_WEEKDAYS + day_offset;
+                let slot = schedule[day_idx];
+
+                for role in Role::iter() {
+                    if let Some(person_idx) = slot.get(role) {
+                        let p_idx = person_idx.get() as usize;
+                        if p_idx < n_people {
+                            let hours = hour_assignments[day_idx][role];
+                            weekly_hours[p_idx][role] += hours;
+                            running_totals[p_idx] += hours;
+
+                            if !Self::is_phantom(day_idx, role, &phantom_shifts) {
+                                weekly_slots[p_idx] += 1;
+
+                                if day_offset == fri_offset {
+                                    match role {
+                                        Role::Lead => people_stats[p_idx].totals.lead_fridays += 1,
+                                        Role::Support => {
+                                            people_stats[p_idx].totals.support_fridays += 1
+                                        }
+                                    }
+                                } else if day_offset == sat_offset {
+                                    match role {
+                                        Role::Lead => people_stats[p_idx].totals.long_weekends += 1,
+                                        Role::Support => {
+                                            people_stats[p_idx].totals.short_weekends += 1
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply holiday credits and store weekly stats
+            for p_idx in 0..n_people {
+                if holiday_weeks[p_idx][week_idx] {
+                    running_totals[p_idx] += problem.people[p_idx].rate.weekly_hours();
+                }
+
+                people_stats[p_idx].weeks.push(WeeklyPersonStats {
+                    hours_by_role: weekly_hours[p_idx],
+                    cumulative_hours: running_totals[p_idx],
+                    slots_count: weekly_slots[p_idx],
+                });
+            }
+        }
+
+        // Finalize totals
+        for p_idx in 0..n_people {
+            people_stats[p_idx].totals.total_hours_worked = running_totals[p_idx];
+        }
+
+        let summary = GlobalStatistics {
+            total_available_hours: hour_assignments.total(),
+            theoretical_hours: people_stats.iter().map(|p| p.totals.expected_hours).sum(),
+        };
 
         let evaluator = ScheduleEvaluator::new(problem, weights);
         let fitness = evaluator.evaluate(&SlotArrayRef(schedule));
 
         ScheduleStatistics {
-            weekly_breakdown,
-            weekly_heatmap,
-            final_statistics,
+            people: people_stats,
+            summary,
             fitness,
         }
     }
 
     /// Returns the indices of phantom shifts (day, role) that should be
-    /// excluded from statistics. Phantom shifts are the last `skip_last_shifts`
-    /// shifts, iterating backwards from the end of the schedule with Support checked
-    /// before Lead per day (matching `HourAssignments` zeroing order).
+    /// excluded from statistics.
     fn phantom_shifts(skip_last_shifts: u8) -> Vec<(usize, Role)> {
         let mut remaining = skip_last_shifts as usize;
         let mut phantoms = Vec::new();
@@ -159,190 +202,6 @@ impl ScheduleStatistics {
             .iter()
             .any(|(d, r)| *d == day_idx && *r == role)
     }
-
-    fn compute_weekly_breakdown(
-        problem: &ProblemInput,
-        schedule: &[Slot; N_DAYS],
-        hour_assignments: &[[f32; Role::COUNT]; N_DAYS],
-    ) -> WeeklyBreakdown {
-        let n_people = problem.people.len();
-        let mut weekly_breakdown = WeeklyBreakdown::default();
-
-        // Build holiday weeks lookup
-        let holiday_weeks: [[bool; N_WEEKS]; MAX_PEOPLE] = array::from_fn(|person_idx| {
-            let mut weeks = [false; N_WEEKS];
-
-            if person_idx < problem.people.len() {
-                for &holiday_week in &problem.people[person_idx].holidays {
-                    if (holiday_week as usize) < N_WEEKS {
-                        weeks[holiday_week as usize] = true;
-                    }
-                }
-            }
-
-            weeks
-        });
-
-        // Track cumulative totals per person
-        let mut running_totals = [0.; MAX_PEOPLE];
-
-        for week in WeekIdx::iter() {
-            let week_idx = week.get() as usize;
-
-            // Iterate through all days in this week
-            for day_offset in 0..N_WEEKDAYS {
-                let day_idx = week.get() as usize * N_WEEKDAYS + day_offset;
-                let slot = schedule[day_idx];
-
-                // Add hours for each role
-                for role in Role::iter() {
-                    if let Some(person) = slot.get(role) {
-                        let hours = hour_assignments[day_idx][role];
-
-                        weekly_breakdown.hours_by_role[person][role][week] += hours;
-                        running_totals[person] += hours;
-                    }
-                }
-            }
-
-            // Add holiday credit and store cumulative totals for this week
-            for person in PersonIdx::iter(n_people) {
-                if holiday_weeks[person][week_idx] {
-                    // Credit holiday: add their weekly hours
-                    let idx = person.get() as usize;
-
-                    if idx < problem.people.len() {
-                        running_totals[person] += problem.people[idx].rate.weekly_hours();
-                    }
-                }
-                weekly_breakdown.cumulative_hours[person][week] = running_totals[person];
-            }
-        }
-
-        weekly_breakdown
-    }
-
-    fn compute_weekly_heatmap(
-        schedule: &[Slot; N_DAYS],
-        skip_last_shifts: u8,
-        n_people: usize,
-    ) -> WeeklyHeatmap {
-        let mut weekly_heatmap = WeeklyHeatmap::default();
-        let phantom_shifts = Self::phantom_shifts(skip_last_shifts);
-
-        for week in WeekIdx::iter() {
-            // Count working days per person for this week (excluding phantom shifts)
-            let mut day_counts = [0_u8; MAX_PEOPLE];
-
-            for day_offset in 0..N_WEEKDAYS {
-                let day_idx = week.get() as usize * N_WEEKDAYS + day_offset;
-                let slot = schedule[day_idx];
-
-                // Check if each person is working this day, excluding phantom shifts
-                for role in Role::iter() {
-                    if Self::is_phantom(day_idx, role, &phantom_shifts) {
-                        continue;
-                    }
-                    if let Some(person) = slot.get(role) {
-                        day_counts[person] += 1;
-                    }
-                }
-            }
-
-            // Store the counts for this week
-            for person in PersonIdx::iter(n_people) {
-                weekly_heatmap.slots_per_week[person][week] = day_counts[person];
-            }
-        }
-
-        weekly_heatmap
-    }
-
-    fn compute_final_statistics(
-        problem: &ProblemInput,
-        schedule: &[Slot; N_DAYS],
-        hour_assignments: &HourAssignments,
-        weekly_breakdown: &WeeklyBreakdown,
-        skip_last_shifts: u8,
-        n_people: usize,
-    ) -> FinalStatistics {
-        // Calculate total hours worked by each person (from cumulative at last week)
-        let mut total_hours_worked = [0.; MAX_PEOPLE];
-
-        // The last week's cumulative is the total
-        for person in PersonIdx::iter(n_people) {
-            total_hours_worked[person] = *weekly_breakdown.cumulative_hours[person].last().unwrap();
-        }
-
-        let expected_hours = array::from_fn(|i| {
-            if i < problem.people.len() {
-                problem.people[i].rate.weekly_hours() * N_WEEKS as f32
-            } else {
-                0.0
-            }
-        });
-
-        // Compute fridays and weekends from schedule (excluding phantom shifts)
-        let mut lead_fridays = [0u8; MAX_PEOPLE];
-        let mut support_fridays = [0u8; MAX_PEOPLE];
-        let phantom_shifts = Self::phantom_shifts(skip_last_shifts);
-
-        let mut long_weekends = [0u8; MAX_PEOPLE];
-        let mut short_weekends = [0u8; MAX_PEOPLE];
-
-        for week in WeekIdx::iter() {
-            let mut counted_weekend = [false; MAX_PEOPLE];
-
-            for weekday in [Weekday::Fri, Weekday::Sat] {
-                let day_offset = weekday.num_days_from_monday() as usize;
-                let day_idx = week.get() as usize * N_WEEKDAYS + day_offset;
-                let slot = schedule[day_idx];
-
-                if weekday == Weekday::Fri {
-                    if !Self::is_phantom(day_idx, Role::Lead, &phantom_shifts)
-                        && let Some(lead) = slot.get(Role::Lead)
-                    {
-                        lead_fridays[lead] += 1;
-                    }
-
-                    if !Self::is_phantom(day_idx, Role::Support, &phantom_shifts)
-                        && let Some(support) = slot.get(Role::Support)
-                    {
-                        support_fridays[support] += 1;
-                    }
-                }
-
-                if weekday == Weekday::Sat {
-                    if !Self::is_phantom(day_idx, Role::Lead, &phantom_shifts)
-                        && let Some(lead) = slot.get(Role::Lead)
-                        && !counted_weekend[lead]
-                    {
-                        long_weekends[lead] += 1;
-                        counted_weekend[lead] = true;
-                    }
-
-                    if !Self::is_phantom(day_idx, Role::Support, &phantom_shifts)
-                        && let Some(support) = slot.get(Role::Support)
-                        && !counted_weekend[support]
-                    {
-                        short_weekends[support] += 1;
-                        counted_weekend[support] = true;
-                    }
-                }
-            }
-        }
-
-        FinalStatistics {
-            expected_hours,
-            theoretical_hours: expected_hours.iter().sum(),
-            total_available_hours: hour_assignments.total(),
-            total_hours_worked,
-            lead_fridays,
-            support_fridays,
-            long_weekends,
-            short_weekends,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -369,14 +228,12 @@ mod tests {
         let stats = ScheduleStatistics::compute(&problem, &slots, &Weights::STANDARD);
 
         // Smoke test: just verify compute() doesn't panic.
-        // Total hours worked includes holiday credit from sample_people()'s holidays.
-        assert!(stats.final_statistics.total_available_hours > 0.0);
+        assert!(stats.summary.total_available_hours > 0.0);
 
-        // Every array should be sized correctly
-        assert_eq!(stats.final_statistics.total_hours_worked.len(), MAX_PEOPLE);
+        // Every person should have stats
+        assert_eq!(stats.people.len(), problem.people.len());
 
         // Expected hours should match problem people
-        let expected: f32 = stats.final_statistics.expected_hours.iter().sum();
-        assert!(expected > 0.0);
+        assert!(stats.summary.theoretical_hours > 0.0);
     }
 }

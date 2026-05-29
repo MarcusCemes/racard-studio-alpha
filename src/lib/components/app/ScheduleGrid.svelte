@@ -137,12 +137,7 @@
 <div
     class="grid-container flex-1 min-w-0 flex flex-col bg-gray-50 relative overflow-hidden zoom-{app.zoomLevel}"
 >
-    <div
-        class={cn(
-            "flex-1 overflow-auto pt-2 pb-4 px-3",
-            app.zoomLevel === "detail" && "overflow-x-auto",
-        )}
-    >
+    <div class={cn("flex-1 overflow-auto", app.zoomLevel === "detail" && "overflow-x-auto")}>
         <!-- Header row -->
         <div
             class="flex items-center sticky top-0 z-4 bg-background border-b border-border pb-1 mb-1"

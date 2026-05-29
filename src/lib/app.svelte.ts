@@ -1,5 +1,8 @@
 import { format, startOfISOWeek } from "date-fns";
 
+import type { Slots } from "$lib/schemas.js";
+import { NULL_SLOT, equalSlots } from "$lib/slot.js";
+
 import {
     DEFAULT_BANK_HOLIDAY_HOURS,
     DEFAULT_WEEKDAY_HOURS,
@@ -24,7 +27,6 @@ import type {
     SolverParameters,
     SolverProgress,
 } from "./schemas.js";
-import { NULL_SLOT, type Slots, equalSlots } from "./slot.js";
 
 class AppState {
     // --- Problem inputs (raw, editable) ---
