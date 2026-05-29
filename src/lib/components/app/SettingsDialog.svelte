@@ -25,6 +25,7 @@
     import ScrollArea from "$lib/components/ui/scroll-area/scroll-area.svelte";
     import * as Separator from "$lib/components/ui/separator/index.js";
     import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+    import { Switch } from "$lib/components/ui/switch/index.js";
     import * as Toggle from "$lib/components/ui/toggle/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
     import { HOLIDAY_NAMES, WEEKDAYS } from "$lib/defs.js";
@@ -142,14 +143,18 @@
         {/snippet}
     </Dialog.Trigger>
 
-    <Dialog.Content class="overflow-hidden p-0 sm:max-h-[85vh] sm:max-w-4xl">
+    <Dialog.Content
+        class="overflow-hidden p-0 sm:max-h-[85vh] sm:h-[85vh] sm:max-w-4xl flex flex-col gap-0"
+    >
         <Dialog.Title class="sr-only">Settings</Dialog.Title>
         <Dialog.Description class="sr-only">Configure schedule parameters.</Dialog.Description>
-        <Sidebar.Provider class="items-start">
+
+        <Sidebar.Provider class="overflow-hidden flex-1">
             <Sidebar.Root collapsible="none" class="hidden md:flex border-r">
                 <Sidebar.Content>
                     <Sidebar.Group>
-                        <Sidebar.GroupLabel>Configuration</Sidebar.GroupLabel>
+                        <Sidebar.GroupLabel class="mb-4">Project configuration</Sidebar.GroupLabel>
+
                         <Sidebar.GroupContent>
                             <Sidebar.Menu>
                                 {#each nav as item}
@@ -169,60 +174,68 @@
                 </Sidebar.Content>
             </Sidebar.Root>
 
-            <main class="flex-1 flex flex-col min-h-0">
-                <ScrollArea class="flex-1">
+            <main class="flex-1 flex">
+                <ScrollArea class="flex-1 h-[80vh]">
                     <div class="p-6">
                         <!-- ═══ Details ═══ -->
                         {#if activeTab === "Details"}
                             <Field.FieldSet>
-                                <Field.FieldTitle>Problem details</Field.FieldTitle>
+                                <Field.Legend>Problem details</Field.Legend>
+                                <Field.Description>
+                                    Configure the core problem parameters for schedule generation.
+                                </Field.Description>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-40 shrink-0 text-right"
-                                        >Start date</Field.FieldLabel
+                                <div class="overflow-hidden rounded-lg border bg-card">
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
-                                        <Input
-                                            type="date"
-                                            bind:value={app.startDate}
-                                            class="font-mono!"
-                                        />
-                                        <Field.FieldDescription>
-                                            First Monday of the schedule period.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                        <Field.Content>
+                                            <Field.Label>Start date</Field.Label>
+                                            <Field.Description>
+                                                First Monday of the schedule period.
+                                            </Field.Description>
+                                        </Field.Content>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-40 shrink-0 text-right"
-                                        >Employees</Field.FieldLabel
+                                        <div>
+                                            <Input
+                                                type="date"
+                                                bind:value={app.startDate}
+                                                class="font-mono"
+                                            />
+                                        </div>
+                                    </Field.Field>
+
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
+                                        <Field.Content>
+                                            <Field.Label>Employees</Field.Label>
+                                            <Field.Description>
+                                                Manage employees in the Employees dialog.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <span class="text-sm font-mono tabular-nums">
                                             {app.people.length} configured
                                         </span>
-                                        <Field.FieldDescription>
-                                            Manage employees in the Employees dialog.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-40 shrink-0 text-right"
-                                        >Skip last shifts</Field.FieldLabel
-                                    >
-                                    <Field.FieldContent>
+                                    <Field.Field orientation="horizontal" class="px-6 py-4">
+                                        <Field.Content>
+                                            <Field.Label>Skip last shifts</Field.Label>
+                                            <Field.Description>
+                                                Exclude the final N workdays from scheduling.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.skipLastShifts}
                                             min="0"
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                         />
-                                        <Field.FieldDescription>
-                                            Exclude the final N workdays from scheduling.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
+                                </div>
                             </Field.FieldSet>
                         {/if}
 
@@ -231,7 +244,10 @@
                             <Field.FieldGroup class="gap-8">
                                 <!-- Standard weekday hours — horizontal grid -->
                                 <Field.FieldSet>
-                                    <Field.FieldTitle>Standard hours</Field.FieldTitle>
+                                    <Field.Legend>Standard hours</Field.Legend>
+                                    <Field.Description>
+                                        Set weekday hour expectations for lead and support roles.
+                                    </Field.Description>
                                     <div class="grid grid-cols-7 gap-2">
                                         {#each WEEKDAYS as day, i}
                                             <div class="flex flex-col items-center gap-1">
@@ -264,7 +280,11 @@
 
                                 <!-- Bank holiday default hours — horizontal grid -->
                                 <Field.FieldSet>
-                                    <Field.FieldTitle>Bank holiday defaults</Field.FieldTitle>
+                                    <Field.Legend>Bank holiday defaults</Field.Legend>
+                                    <Field.Description>
+                                        Default hours applied to bank holiday dates, keyed by the
+                                        weekday the holiday falls on.
+                                    </Field.Description>
                                     <div class="grid grid-cols-7 gap-2">
                                         {#each WEEKDAYS as day, i}
                                             <div class="flex flex-col items-center gap-1">
@@ -298,10 +318,13 @@
                                 <!-- Bank holidays -->
                                 <Separator.Root />
                                 <Field.FieldSet>
+                                    <Field.Legend>Bank holidays</Field.Legend>
+                                    <Field.Description>
+                                        Override hours for specific bank holidays. Empty fields fall
+                                        back to the bank holiday defaults above.
+                                    </Field.Description>
                                     <div class="flex items-center justify-between">
-                                        <Field.FieldTitle class="mb-0!"
-                                            >Bank holidays</Field.FieldTitle
-                                        >
+                                        <span></span>
                                         <button
                                             onclick={refetchBankHolidays}
                                             class="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-400 cursor-pointer bg-transparent border-none py-1 px-2 rounded-md hover:bg-accent"
@@ -407,51 +430,71 @@
                         <!-- ═══ Overrides ═══ -->
                         {#if activeTab === "Overrides"}
                             <Field.FieldSet>
-                                <Field.FieldTitle>Custom date overrides</Field.FieldTitle>
+                                <Field.Legend>Custom date overrides</Field.Legend>
+                                <Field.Description>
+                                    Manually set hours for specific dates and roles.
+                                </Field.Description>
 
-                                <div class="flex flex-col gap-2">
+                                <div class="overflow-hidden rounded-lg border bg-card">
                                     {#each app.customOverrides as ov, i}
-                                        <div class="flex items-center gap-2">
-                                            <Input
-                                                type="date"
-                                                bind:value={ov.date}
-                                                class="flex-1! font-mono!"
-                                            />
-                                            <Toggle.Root
-                                                pressed={ov.role === "Lead"}
-                                                onPressedChange={() =>
-                                                    (ov.role =
-                                                        ov.role === "Lead" ? "Support" : "Lead")}
-                                                class="h-9! w-9! p-0! rounded-lg! border! border-border!"
-                                            >
-                                                {#if ov.role === "Lead"}
-                                                    <Crown size={14} />
-                                                {:else}
-                                                    <Shield size={14} />
-                                                {/if}
-                                            </Toggle.Root>
-                                            <Input
-                                                type="number"
-                                                bind:value={ov.hours}
-                                                class="w-20! font-mono!"
-                                                min="0"
-                                            />
-                                            <button
-                                                onclick={() => removeOverride(i)}
-                                                class="text-muted-foreground hover:text-destructive cursor-pointer bg-transparent border-none p-0"
-                                            >
-                                                <X size={14} />
-                                            </button>
+                                        <Field.Field
+                                            orientation="horizontal"
+                                            class="border-b px-6 py-4"
+                                        >
+                                            <Field.Content>
+                                                <Input
+                                                    type="date"
+                                                    bind:value={ov.date}
+                                                    class="font-mono"
+                                                />
+                                            </Field.Content>
+                                            <div class="flex items-center gap-2">
+                                                <Toggle.Root
+                                                    pressed={ov.role === "Lead"}
+                                                    onPressedChange={() =>
+                                                        (ov.role =
+                                                            ov.role === "Lead"
+                                                                ? "Support"
+                                                                : "Lead")}
+                                                    class="h-9! w-9! p-0! rounded-lg! border! border-border!"
+                                                >
+                                                    {#if ov.role === "Lead"}
+                                                        <Crown size={14} />
+                                                    {:else}
+                                                        <Shield size={14} />
+                                                    {/if}
+                                                </Toggle.Root>
+                                                <Input
+                                                    type="number"
+                                                    bind:value={ov.hours}
+                                                    class="w-20! font-mono!"
+                                                    min="0"
+                                                />
+                                                <button
+                                                    onclick={() => removeOverride(i)}
+                                                    class="text-muted-foreground hover:text-destructive cursor-pointer bg-transparent border-none p-0"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        </Field.Field>
+                                    {:else}
+                                        <div class="px-6 py-4">
+                                            <span class="text-sm text-muted-foreground">
+                                                No overrides yet.
+                                            </span>
                                         </div>
                                     {/each}
 
-                                    <button
-                                        onclick={addOverride}
-                                        class="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-400 cursor-pointer bg-transparent border-none px-0 py-1"
-                                    >
-                                        <Plus size={14} />
-                                        Add Override
-                                    </button>
+                                    <div class="px-6 py-3">
+                                        <button
+                                            onclick={addOverride}
+                                            class="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-400 cursor-pointer bg-transparent border-none"
+                                        >
+                                            <Plus size={14} />
+                                            Add Override
+                                        </button>
+                                    </div>
                                 </div>
                             </Field.FieldSet>
                         {/if}
@@ -461,48 +504,53 @@
                             <Field.FieldGroup class="gap-8">
                                 {#each solverPhases as phase}
                                     <Field.FieldSet>
-                                        <Field.FieldTitle>{phase.label}</Field.FieldTitle>
+                                        <Field.Legend>{phase.label}</Field.Legend>
+                                        <Field.Description>
+                                            Configure how the solver generates candidates for {phase.label.toLowerCase()}
+                                            assignments.
+                                        </Field.Description>
 
-                                        <Field.Field orientation="horizontal">
-                                            <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                                >Permutations</Field.FieldLabel
+                                        <div class="overflow-hidden rounded-lg border bg-card">
+                                            <Field.Field
+                                                orientation="horizontal"
+                                                class="border-b px-6 py-4"
                                             >
-                                            <Field.FieldContent>
+                                                <Field.Content>
+                                                    <Field.Label>Permutations</Field.Label>
+                                                    <Field.Description>
+                                                        Number of candidate schedules to generate.
+                                                    </Field.Description>
+                                                </Field.Content>
                                                 <Input
                                                     type="number"
                                                     bind:value={
                                                         app.solverParams[phase.key]
                                                             .number_permutations
                                                     }
-                                                    class="w-24! font-mono!"
+                                                    class="w-24 font-mono"
                                                     min="1"
                                                 />
-                                                <Field.FieldDescription>
-                                                    Number of candidate schedules to generate.
-                                                </Field.FieldDescription>
-                                            </Field.FieldContent>
-                                        </Field.Field>
+                                            </Field.Field>
 
-                                        <Field.Field orientation="horizontal">
-                                            <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                                >Resolve attempts</Field.FieldLabel
-                                            >
-                                            <Field.FieldContent>
+                                            <Field.Field orientation="horizontal" class="px-6 py-4">
+                                                <Field.Content>
+                                                    <Field.Label>Resolve attempts</Field.Label>
+                                                    <Field.Description>
+                                                        Maximum attempts to resolve conflicts per
+                                                        candidate.
+                                                    </Field.Description>
+                                                </Field.Content>
                                                 <Input
                                                     type="number"
                                                     bind:value={
                                                         app.solverParams[phase.key]
                                                             .max_resolve_attempts
                                                     }
-                                                    class="w-24! font-mono!"
+                                                    class="w-24 font-mono"
                                                     min="1"
                                                 />
-                                                <Field.FieldDescription>
-                                                    Maximum attempts to resolve conflicts per
-                                                    candidate.
-                                                </Field.FieldDescription>
-                                            </Field.FieldContent>
-                                        </Field.Field>
+                                            </Field.Field>
+                                        </div>
                                     </Field.FieldSet>
                                 {/each}
                             </Field.FieldGroup>
@@ -511,169 +559,161 @@
                         <!-- ═══ Refiner ═══ -->
                         {#if activeTab === "Refiner"}
                             <Field.FieldSet>
-                                <Field.FieldTitle>Simulated annealing</Field.FieldTitle>
+                                <Field.Legend>Simulated annealing</Field.Legend>
+                                <Field.Description>
+                                    Tune the refinement pass that improves solver results.
+                                </Field.Description>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Iterations</Field.FieldLabel
+                                <div class="overflow-hidden rounded-lg border bg-card">
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
+                                        <Field.Content>
+                                            <Field.Label>Iterations</Field.Label>
+                                            <Field.Description>
+                                                Total simulated annealing steps per search.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.refinerParams.num_iterations}
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                             min="0"
                                         />
-                                        <Field.FieldDescription>
-                                            Total simulated annealing steps per search.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Temperature</Field.FieldLabel
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
+                                        <Field.Content>
+                                            <Field.Label>Temperature</Field.Label>
+                                            <Field.Description>
+                                                Starting temperature for acceptance probability.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.refinerParams.initial_temperature}
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                             step="0.1"
                                             min="0"
                                         />
-                                        <Field.FieldDescription>
-                                            Starting temperature for acceptance probability.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Cooling rate</Field.FieldLabel
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
+                                        <Field.Content>
+                                            <Field.Label>Cooling rate</Field.Label>
+                                            <Field.Description>
+                                                Multiplicative decay per iteration (0–1).
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.refinerParams.cooling_rate}
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                             step="0.001"
                                             min="0.001"
                                             max="0.999"
                                         />
-                                        <Field.FieldDescription>
-                                            Multiplicative decay per iteration (0–1).
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Searches</Field.FieldLabel
+                                    <Field.Field
+                                        orientation="horizontal"
+                                        class="border-b px-6 py-4"
                                     >
-                                    <Field.FieldContent>
+                                        <Field.Content>
+                                            <Field.Label>Searches</Field.Label>
+                                            <Field.Description>
+                                                Number of independent annealing runs.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.refinerParams.searches}
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                             min="1"
                                         />
-                                        <Field.FieldDescription>
-                                            Number of independent annealing runs.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Polish</Field.FieldLabel
-                                    >
-                                    <Field.FieldContent>
-                                        <button
-                                            class="cursor-pointer bg-transparent border-none p-0 flex items-center"
-                                            onclick={() =>
-                                                (app.refinerParams.polish =
-                                                    !app.refinerParams.polish)}
-                                        >
-                                            {#if app.refinerParams.polish}
-                                                <span
-                                                    class="w-4 h-4 rounded border-2 border-blue-500 bg-blue-500 flex items-center justify-center"
-                                                >
-                                                    <svg
-                                                        viewBox="0 0 10 10"
-                                                        class="w-2.5 h-2.5 text-white"
-                                                        ><path
-                                                            d="M2 5l2 2 4-4"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            stroke-width="1.5"
-                                                            stroke-linecap="round"
-                                                            stroke-linejoin="round"
-                                                        /></svg
-                                                    >
-                                                </span>
-                                            {:else}
-                                                <span
-                                                    class="w-4 h-4 rounded border-2 border-muted-foreground/40"
-                                                ></span>
-                                            {/if}
-                                        </button>
-                                        <Field.FieldDescription>
-                                            Run a greedy final pass to clean up the result.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    <Field.Field orientation="horizontal" class="px-6 py-4">
+                                        <Field.Content>
+                                            <Field.Label>Polish</Field.Label>
+                                            <Field.Description>
+                                                Run a greedy final pass to clean up the result.
+                                            </Field.Description>
+                                        </Field.Content>
+
+                                        <Switch bind:checked={app.refinerParams.polish} />
+                                    </Field.Field>
+                                </div>
                             </Field.FieldSet>
                         {/if}
 
                         <!-- ═══ Weights ═══ -->
                         {#if activeTab === "Weights"}
                             <Field.FieldSet>
-                                <Field.FieldTitle>Fitness weights</Field.FieldTitle>
+                                <Field.Legend>Fitness weights</Field.Legend>
+                                <Field.Description>
+                                    Adjust how the solver and refiner penalise different quality
+                                    aspects.
+                                </Field.Description>
 
-                                {#each weightsDefs as wd}
-                                    <Field.Field orientation="horizontal">
-                                        <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                            >{wd.label}</Field.FieldLabel
+                                <div class="overflow-hidden rounded-lg border bg-card">
+                                    {#each weightsDefs as wd, idx}
+                                        <Field.Field
+                                            orientation="horizontal"
+                                            class={idx < weightsDefs.length - 1
+                                                ? "border-b px-6 py-4"
+                                                : "px-6 py-4"}
                                         >
-                                        <Field.FieldContent>
+                                            <Field.Content>
+                                                <Field.Label>{wd.label}</Field.Label>
+                                                <Field.Description>
+                                                    {wd.desc}
+                                                </Field.Description>
+                                            </Field.Content>
                                             <Input
                                                 type="number"
                                                 bind:value={app.weights[wd.key] as any}
-                                                class="w-24! font-mono!"
+                                                class="w-24 font-mono"
                                                 min="0"
                                             />
-                                            <Field.FieldDescription>
-                                                {wd.desc}
-                                            </Field.FieldDescription>
-                                        </Field.FieldContent>
-                                    </Field.Field>
-                                {/each}
+                                        </Field.Field>
+                                    {/each}
+                                </div>
                             </Field.FieldSet>
                         {/if}
 
                         <!-- ═══ Advanced ═══ -->
                         {#if activeTab === "Advanced"}
                             <Field.FieldSet>
-                                <Field.FieldTitle>Pipeline</Field.FieldTitle>
+                                <Field.Legend>Pipeline</Field.Legend>
+                                <Field.Description>
+                                    Control how the orchestration pipeline operates.
+                                </Field.Description>
 
-                                <Field.Field orientation="horizontal">
-                                    <Field.FieldLabel class="w-44 shrink-0 text-right"
-                                        >Top‑K</Field.FieldLabel
-                                    >
-                                    <Field.FieldContent>
+                                <div class="overflow-hidden rounded-lg border bg-card">
+                                    <Field.Field orientation="horizontal" class="px-6 py-4">
+                                        <Field.Content>
+                                            <Field.Label>Top‑K</Field.Label>
+                                            <Field.Description>
+                                                Number of best solver candidates forwarded to the
+                                                refiner.
+                                            </Field.Description>
+                                        </Field.Content>
                                         <Input
                                             type="number"
                                             bind:value={app.topK}
-                                            class="w-24! font-mono!"
+                                            class="w-24 font-mono"
                                             min="1"
                                         />
-                                        <Field.FieldDescription>
-                                            Number of best solver candidates forwarded to the
-                                            refiner.
-                                        </Field.FieldDescription>
-                                    </Field.FieldContent>
-                                </Field.Field>
+                                    </Field.Field>
+                                </div>
                             </Field.FieldSet>
                         {/if}
                     </div>

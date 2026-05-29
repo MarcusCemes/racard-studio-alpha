@@ -1,9 +1,11 @@
 <script lang="ts">
+    import { SquareDashedMousePointer } from "@lucide/svelte";
     import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
     import { LineChart } from "layerchart";
 
     import { app } from "$lib/app.svelte.js";
     import { type ChartConfig, ChartContainer } from "$lib/components/ui/chart/index.js";
+    import * as Empty from "$lib/components/ui/empty/index.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
     import { DEFAULT_WEEKDAY_HOURS, N_WEEKDAYS, N_WEEKS, PERSON_COLORS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
@@ -156,16 +158,19 @@
         {/if}
     </div>
 
-    <div class="flex-1 overflow-y-auto py-2.5">
+    <div class="flex-1 overflow-y-auto flex flex-col py-2.5">
         <!-- ── IDLE STATE ── -->
         {#if panelState === "idle"}
-            <div class="px-3.5 py-6 flex flex-col items-center justify-center text-center gap-2">
-                <span class="text-muted-foreground text-sm">Select a day or employee</span>
-                <span class="text-muted-foreground text-xs"
-                    >Press <kbd class="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">c</kbd> for
-                    settings</span
-                >
-            </div>
+            <Empty.Root class="flex-1 opacity-60">
+                <Empty.Header>
+                    <Empty.Media variant="icon">
+                        <SquareDashedMousePointer />
+                    </Empty.Media>
+
+                    <Empty.Title>Inspector</Empty.Title>
+                    <Empty.Description>Click on something to view its details.</Empty.Description>
+                </Empty.Header>
+            </Empty.Root>
 
             <!-- ── DAY STATE ── -->
         {:else if panelState === "day" && dayData}
