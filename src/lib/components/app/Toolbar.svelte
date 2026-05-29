@@ -10,6 +10,7 @@
         Wand2,
         Zap,
     } from "@lucide/svelte";
+    import { toast } from "svelte-sonner";
 
     import { apiInterrupt, apiOrchestrate, apiRefine, apiSolve } from "$lib/api.js";
     import { type ActiveMode, app } from "$lib/app.svelte";
@@ -23,7 +24,7 @@
 
     import ProgressRing from "../misc/ProgressRing.svelte";
     import ToolbarHistory from "./ToolbarHistory.svelte";
-    import ToolbarSettings from "./ToolbarSettings.svelte";
+    import ToolbarMenu from "./ToolbarMenu.svelte";
 
     const modes: { id: ActiveMode; label: string; icon: typeof MousePointer2; shortcut: string }[] =
         [
@@ -77,30 +78,32 @@
         apiInterrupt();
     }
 
-    function runOperation(operation: RequestedOperation) {
-        if (operation === "solve") {
-            apiSolve(app, app.solverParams, app.weights).then((result) => {
-                app.slots = result.solution;
-            });
-            return;
+    async function runOperation(operation: RequestedOperation) {
+        try {
+            if (operation === "solve") {
+                const { solution } = await apiSolve(app, app.solverParams, app.weights);
+                app.slots = solution;
+            } else if (operation === "refine") {
+                const [, solution] = await apiRefine(
+                    app,
+                    app.refinerParams,
+                    app.slots,
+                    app.weights,
+                );
+                app.slots = solution;
+            } else {
+                const { solution } = await apiOrchestrate(
+                    app,
+                    { top_k: app.topK },
+                    app.solverParams,
+                    app.refinerParams,
+                    app.weights,
+                );
+                app.slots = solution;
+            }
+        } catch (error) {
+            toast.error("Failed to run operation", { description: `${error}` });
         }
-
-        if (operation === "refine") {
-            apiRefine(app, app.refinerParams, app.slots, app.weights).then((result) => {
-                app.slots = result[1];
-            });
-            return;
-        }
-
-        apiOrchestrate(
-            app,
-            { top_k: app.topK },
-            app.solverParams,
-            app.refinerParams,
-            app.weights,
-        ).then((result) => {
-            app.slots = result.solution;
-        });
     }
 
     function onconfirm() {
@@ -120,14 +123,12 @@
         if (confirmOperation === "solve") {
             return "The solver will replace the current schedule with a generated schedule.";
         }
+
         if (confirmOperation === "refine") {
             return "The refiner will replace the current schedule with the best refined result.";
         }
-        return "Auto will solve candidate schedules, refine the top results, and replace the current schedule with the best final result.";
-    }
 
-    function closeConfirm(open: boolean) {
-        if (!open) confirmOperation = null;
+        return "Auto will solve candidate schedules, refine the top results, and replace the current schedule with the best final result.";
     }
 
     function onkeydown(event: KeyboardEvent) {
@@ -142,12 +143,13 @@
 
 <svelte:window {onkeydown} />
 
-<header
-    class="flex items-center justify-between h-11 px-3 gap-2 shrink-0 border-b border-border bg-card"
->
-    <div class="flex items-center gap-1">
+<header class="flex items-center h-11 px-3 gap-2 shrink-0 border-b border-border bg-card">
+    <div class="flex-1 flex items-center gap-4">
         <span class="text-[13px] font-extrabold whitespace-nowrap uppercase">{APP_NAME}</span>
-        <Separator orientation="vertical" class="h-5 mx-1" />
+        <ToolbarMenu />
+    </div>
+
+    <div class="flex-1 flex justify-center">
         <div
             class="flex items-center gap-0.5 rounded-md border p-0.5"
             role="toolbar"
@@ -178,11 +180,8 @@
         </div>
     </div>
 
-    <div class="flex items-center gap-1">
+    <div class="flex-1 flex items-center justify-end gap-4">
         <ToolbarHistory />
-        <ToolbarSettings />
-
-        <div class="w-8"></div>
 
         <div class="flex items-center">
             {#if activeOp}
@@ -214,11 +213,13 @@
                         </Button>
                     {/snippet}
                 </DropdownMenu.Trigger>
+
                 <DropdownMenu.Content align="end" class="w-40">
                     <DropdownMenu.Item onclick={() => requestOperation("solve")}>
                         <Wand2 />
                         Solve
                     </DropdownMenu.Item>
+
                     <DropdownMenu.Item onclick={() => requestOperation("refine")}>
                         <Zap />
                         Refine
@@ -229,7 +230,8 @@
     </div>
 </header>
 
-<AlertDialog.Root bind:open={() => confirmOperation !== null, closeConfirm}>
+<!-- Confirmation dialog -->
+<AlertDialog.Root bind:open={() => confirmOperation !== null, () => (confirmOperation = null)}>
     <AlertDialog.Content>
         <AlertDialog.Header>
             <AlertDialog.Title>{confirmTitle()}</AlertDialog.Title>
