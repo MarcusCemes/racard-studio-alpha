@@ -1,21 +1,110 @@
 <script lang="ts">
     import { addDays, format, parseISO, startOfISOWeek } from "date-fns";
 
+    import { setPerson, swapDays, swapRoles } from "$lib/actions.js";
     import { app } from "$lib/app.svelte.js";
-    import { N_DAYS, N_WEEKDAYS, PERSON_COLORS, WEEKDAYS } from "$lib/defs.js";
+    import { N_DAYS, N_WEEKDAYS, PERSON_COLORS, Role, WEEKDAYS } from "$lib/defs.js";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
     interface DayDescriptor {
         dayIndex: number;
         weekNumber: number;
         dateString: string;
-        dayOfMonth: number;
         mondayLabel: string | null;
         isWeekend: boolean;
         isWeekStart: boolean;
         isNewMonth: boolean;
         monthLabel: string | null;
     }
+
+    // ── Delegated click handler ──
+
+    function handleGridClick(e: MouseEvent) {
+        const target = e.target as HTMLElement;
+        const roleEl = target.closest<HTMLElement>("[data-role]");
+        const dayEl = target.closest<HTMLElement>("[data-day]");
+
+        if (!dayEl) return;
+
+        const dayIndex = Number(dayEl.dataset.day);
+        const role = roleEl ? (Number(roleEl.dataset.role) as Role) : undefined;
+        const mode = app.activeMode;
+
+        switch (mode) {
+            case "select":
+                app.selection = { type: "day", dayIndex };
+                break;
+
+            case "set":
+                if (role !== undefined && app.activeBrush !== undefined) {
+                    setPerson(dayIndex, role, app.activeBrush);
+                }
+                break;
+
+            case "erase":
+                if (role !== undefined) {
+                    setPerson(dayIndex, role);
+                }
+                break;
+
+            case "swap_role": {
+                if (role === undefined) return;
+                const src = app.swapSource;
+                if (src.type === "role") {
+                    swapRoles(src.dayIndex, dayIndex, src.role, role);
+                    app.swapSource = { type: "none" };
+                } else {
+                    app.swapSource = { type: "role", dayIndex, role };
+                }
+                break;
+            }
+
+            case "swap_day": {
+                const src = app.swapSource;
+                if (src.type === "day") {
+                    swapDays(src.dayIndex, dayIndex);
+                    app.swapSource = { type: "none" };
+                } else {
+                    app.swapSource = { type: "day", dayIndex };
+                }
+                break;
+            }
+        }
+    }
+
+    // ── Arrow key navigation (select mode only) ──
+
+    function handleArrowKey(event: KeyboardEvent) {
+        if (app.activeMode !== "select") return;
+        if (app.selection.type !== "day") return;
+
+        let { dayIndex } = app.selection;
+        let newDay = dayIndex;
+
+        if (event.key === "ArrowUp") newDay -= N_WEEKDAYS;
+        else if (event.key === "ArrowDown") newDay += N_WEEKDAYS;
+        else if (event.key === "ArrowLeft") newDay -= 1;
+        else if (event.key === "ArrowRight") newDay += 1;
+        else return;
+
+        if (newDay >= 0 && newDay < N_DAYS) {
+            app.selection = { type: "day", dayIndex: newDay };
+            event.preventDefault();
+        }
+    }
+
+    useHotKeys(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], handleArrowKey);
+
+    // ── Clear selection on mode change ──
+
+    $effect(() => {
+        void app.activeMode;
+        app.selection = { type: "none" };
+        app.swapSource = { type: "none" };
+    });
+
+    // ── Schedule data generator ──
 
     function* scheduleDays(): Generator<DayDescriptor> {
         const baseDate = startOfISOWeek(parseISO(app.startDate));
@@ -51,7 +140,6 @@
                 dayIndex,
                 weekNumber: weekIdx + 1,
                 dateString: format(date, "yyyy-MM-dd"),
-                dayOfMonth: date.getDate(),
                 mondayLabel,
                 isWeekend: dayOfWeek >= 5,
                 isWeekStart: dayOfWeek === 0,
@@ -62,24 +150,48 @@
     }
 </script>
 
-<div
-    class="grid-container flex-1 min-w-0 flex flex-col bg-gray-50 zoom-{app.zoomLevel}"
->
+{#snippet roleHalf(role: Role, personId: number | undefined, day: DayDescriptor)}
+    {@const name = app.formattedNames[personId ?? -1]}
+    {@const swatchClass =
+        personId != null ? PERSON_COLORS[personId % PERSON_COLORS.length][1] : null}
+    {@const isSelected = app.isSelected(day.dayIndex, role)}
+    {@const isSwapSrc = app.isSwapSource(day.dayIndex, role)}
+
+    <div
+        class="role"
+        class:lead={role === Role.Lead}
+        class:support={role === Role.Support}
+        class:selected={isSelected}
+        class:swap-source={isSwapSrc}
+        data-role={role}
+    >
+        <span class="swatch {swatchClass}" class:swatch-empty={!name}></span>
+        {#if name}
+            <span class="role-name hide-micro">{name}</span>
+        {:else}
+            <span class="role-empty hide-micro">&mdash;</span>
+        {/if}
+    </div>
+{/snippet}
+
+<div class="grid-container flex-1 min-w-0 flex flex-col bg-gray-50 zoom-{app.zoomLevel}">
     <!-- Sticky header row -->
     <div class="grid-header sticky top-0 z-10 bg-background border-b border-border">
         <div class="header-label"></div>
         {#each WEEKDAYS as day, i}
-            <div
-                class="header-day"
-                class:header-day-weekend={i >= 5}
-            >
+            <div class="header-day" class:header-day-weekend={i >= 5}>
                 {day}
             </div>
         {/each}
     </div>
 
-    <!-- Scrollable grid body -->
-    <div class="grid-body flex-1 overflow-y-auto">
+    <!-- Grid body -->
+    <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
+    <div
+        class="grid-body flex-1 overflow-y-auto"
+        data-mode={app.activeMode}
+        onclick={handleGridClick}
+    >
         {#each scheduleDays() as day (day.dayIndex)}
             {#if day.isNewMonth && day.monthLabel}
                 <div class="month-divider">
@@ -100,42 +212,24 @@
             {@const slot = app.slots[day.dayIndex]}
             {@const lead = getLead(slot)}
             {@const support = getSupport(slot)}
-            {@const leadName = app.formattedNames[lead ?? -1]}
-            {@const leadSwatch = lead != null ? PERSON_COLORS[lead % PERSON_COLORS.length][1] : null}
-            {@const supportName = app.formattedNames[support ?? -1]}
-            {@const supportSwatch = support != null ? PERSON_COLORS[support % PERSON_COLORS.length][1] : null}
             {@const holiday = app.holidayMap[day.dateString]}
+            {@const isDaySelected = app.isSelected(day.dayIndex)}
+            {@const isDaySwapSrc = app.isSwapSource(day.dayIndex)}
 
             <div
                 class="day-cell"
                 class:weekend={day.isWeekend}
                 class:holiday={!!holiday}
+                class:selected={isDaySelected}
+                class:swap-source={isDaySwapSrc}
+                data-day={day.dayIndex}
             >
-                <span class="day-date hide-micro">{day.dayOfMonth}</span>
-
                 {#if holiday}
                     <span class="holiday-badge hide-micro">{holiday}</span>
                 {/if}
 
-                <!-- Lead role -->
-                <div class="role lead">
-                    {#if leadName}
-                        <span class="swatch {leadSwatch}"></span>
-                        <span class="role-name hide-micro">{leadName}</span>
-                    {:else}
-                        <span class="role-empty hide-micro">&mdash;</span>
-                    {/if}
-                </div>
-
-                <!-- Support role -->
-                <div class="role support">
-                    {#if supportName}
-                        <span class="swatch {supportSwatch}"></span>
-                        <span class="role-name hide-micro">{supportName}</span>
-                    {:else}
-                        <span class="role-empty hide-micro">&mdash;</span>
-                    {/if}
-                </div>
+                {@render roleHalf(Role.Lead, lead, day)}
+                {@render roleHalf(Role.Support, support, day)}
             </div>
         {/each}
     </div>
@@ -214,7 +308,8 @@
         grid-template-columns: 4.25rem repeat(7, 1fr);
         grid-auto-rows: auto;
         align-items: start;
-        gap: 0.125rem;
+        column-gap: 0.125rem;
+        row-gap: 0.25rem;
         padding: 0 0.125rem;
     }
 
@@ -224,7 +319,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding-block: 0.625rem 0.25rem;
+        padding-block: 0.5rem 0.125rem;
     }
 
     .month-divider span {
@@ -274,18 +369,6 @@
     .day-cell.holiday {
         background: oklch(0.85 0.15 85 / 0.05);
         border-color: oklch(0.85 0.15 85 / 0.2);
-    }
-
-    /* ── Date badge ── */
-    .day-date {
-        position: absolute;
-        top: 0.125rem;
-        left: 0.1875rem;
-        font-family: var(--font-mono, monospace);
-        font-size: 0.531rem;
-        color: var(--color-muted-foreground);
-        opacity: 0.6;
-        line-height: 1;
     }
 
     /* ── Holiday badge ── */
@@ -340,10 +423,11 @@
     }
 
     .role-empty {
-        font-size: 0.625rem;
+        font-size: 0.656rem;
         color: var(--color-muted-foreground);
         opacity: 0.4;
         font-style: italic;
+        line-height: 1;
     }
 
     /* ── Swatch ── */
@@ -352,5 +436,55 @@
         width: var(--swatch-size);
         height: var(--swatch-size);
         border-radius: var(--swatch-rounded);
+    }
+
+    .swatch-empty {
+        visibility: hidden;
+    }
+
+    /* ── Selection visual states ── */
+
+    .day-cell.selected {
+        border-color: oklch(0.55 0.22 260);
+        box-shadow: 0 0 0 1px oklch(0.55 0.22 260 / 0.45);
+    }
+
+    .day-cell.swap-source {
+        border-color: oklch(0.65 0.18 50);
+        border-style: dashed;
+        animation: swap-pulse 1.4s ease-in-out infinite;
+    }
+
+    .role.selected {
+        background: oklch(0.55 0.22 260 / 0.12);
+        box-shadow: inset 0 0 0 1px oklch(0.55 0.22 260 / 0.25);
+    }
+
+    .role.swap-source {
+        background: oklch(0.65 0.18 50 / 0.12);
+        box-shadow: inset 0 0 0 1px oklch(0.65 0.18 50 / 0.25);
+    }
+
+    @keyframes swap-pulse {
+        0%,
+        100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
+
+    /* ── Mode-driven cursors ── */
+
+    .grid-body[data-mode="select"] .day-cell,
+    .grid-body[data-mode="swap_day"] .day-cell {
+        cursor: pointer;
+    }
+
+    .grid-body[data-mode="set"] .role,
+    .grid-body[data-mode="erase"] .role,
+    .grid-body[data-mode="swap_role"] .role {
+        cursor: pointer;
     }
 </style>

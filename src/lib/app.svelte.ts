@@ -143,7 +143,7 @@ class AppState {
         const sel = this.selection;
         if (sel.type === "none") return false;
 
-        if (role) {
+        if (role !== undefined) {
             return sel.type === "role" && sel.dayIndex === dayIndex && sel.role === role;
         }
 
@@ -152,10 +152,15 @@ class AppState {
 
     isSwapSource(dayIndex: number, role?: Role): boolean {
         const src = this.swapSource;
-        if (src.type === "none") return false;
-        if (role) {
+
+        if (src.type === "none") {
+            return false;
+        }
+
+        if (role !== undefined) {
             return src.type === "role" && src.dayIndex === dayIndex && src.role === role;
         }
+
         return src.type === "day" && src.dayIndex === dayIndex;
     }
 
