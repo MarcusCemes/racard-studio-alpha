@@ -7,7 +7,7 @@
     import * as Empty from "$lib/components/ui/empty/index.js";
     import * as Popover from "$lib/components/ui/popover/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-    import { useHotKey } from "$lib/hooks/useHotkey.svelte";
+    import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
     import { timestamp } from "$lib/misc.js";
 
     import Kbd from "../ui/kbd/kbd.svelte";

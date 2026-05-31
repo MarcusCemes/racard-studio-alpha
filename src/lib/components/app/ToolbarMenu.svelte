@@ -1,6 +1,6 @@
 <script lang="ts">
     import { redo, undo } from "$lib/actions.js";
-    import { app } from "$lib/app.svelte.js";
+    import { GridMode, ZoomLevel, app, resetApp, view } from "$lib/app.svelte.js";
     import * as Menubar from "$lib/components/ui/menubar/index.js";
 </script>
 
@@ -9,7 +9,7 @@
         <Menubar.Trigger>File</Menubar.Trigger>
 
         <Menubar.Content>
-            <Menubar.Item>New</Menubar.Item>
+            <Menubar.Item onclick={resetApp}>New</Menubar.Item>
             <Menubar.Item>Open</Menubar.Item>
             <Menubar.Item>Save</Menubar.Item>
             <Menubar.Item>Export PDF</Menubar.Item>
@@ -33,11 +33,19 @@
         <Menubar.Trigger>View</Menubar.Trigger>
 
         <Menubar.Content>
-            <Menubar.RadioGroup bind:value={app.zoomLevel}>
+            <Menubar.RadioGroup bind:value={view.zoom}>
                 <Menubar.GroupHeading>Zoom level</Menubar.GroupHeading>
-                <Menubar.RadioItem value="micro">Micro</Menubar.RadioItem>
-                <Menubar.RadioItem value="standard">Standard</Menubar.RadioItem>
-                <Menubar.RadioItem value="detail">Detail</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Micro}>Micro</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Standard}>Standard</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Detail}>Detail</Menubar.RadioItem>
+            </Menubar.RadioGroup>
+
+            <Menubar.Separator />
+
+            <Menubar.RadioGroup bind:value={view.gridMode}>
+                <Menubar.GroupHeading>Grid mode</Menubar.GroupHeading>
+                <Menubar.RadioItem value={GridMode.Bars}>Bars</Menubar.RadioItem>
+                <Menubar.RadioItem value={GridMode.Filled}>Filled</Menubar.RadioItem>
             </Menubar.RadioGroup>
         </Menubar.Content>
     </Menubar.Menu>

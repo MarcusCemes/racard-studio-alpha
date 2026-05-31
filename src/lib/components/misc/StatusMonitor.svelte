@@ -3,6 +3,7 @@
     import { app } from "$lib/app.svelte.js";
 
     let busy = $state(false);
+    let error = $state(false);
 
     // Refresh statistics and conflicts whenever slots change
     $effect(() => {
@@ -16,8 +17,13 @@
                     return;
                 }
 
+                error = false;
+
                 app.statistics = statistics;
                 app.conflicts = conflicts;
+            })
+            .catch((err) => {
+                error = true;
             })
             .finally(() => {
                 if (!aborted) {
@@ -29,4 +35,6 @@
     });
 </script>
 
-<div class="size-2 rounded-full {busy ? 'bg-orange-600' : 'bg-green-600'}"></div>
+<div
+    class="size-2 rounded-full {error ? 'bg-red-600' : busy ? 'bg-amber-600' : 'bg-green-600'}"
+></div>

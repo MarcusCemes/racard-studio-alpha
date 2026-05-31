@@ -24,11 +24,9 @@ export function swapRoles(dayA: number, dayB: number, roleA: Role, roleB: Role) 
     app.slots[dayB] = setRole(slotB, roleB, userA);
 }
 
-export function setPerson(day: number, role: number, person?: number) {
+export function setPerson(day: number, role: Role, person?: number) {
     app.history.push(app.slots);
     app.slots[day] = setRole(app.slots[day], role, person);
-
-    app.history.debug();
 }
 
 /* === History === */

@@ -2,17 +2,17 @@
     import { SquareDashedMousePointer } from "@lucide/svelte";
     import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
 
-    import { app } from "$lib/app.svelte.js";
+    import { app, selection } from "$lib/app.svelte.js";
     import * as Empty from "$lib/components/ui/empty/index.js";
-    import { Separator } from "$lib/components/ui/separator/index.js";
     import { N_WEEKDAYS, PERSON_COLORS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
     import InspectEmployee from "./InspectEmployee.svelte";
+    import InspectorDay from "./InspectorDay.svelte";
 
-    let dayIndex = $derived(app.selectedDayOfWeek);
-    let weekIndex = $derived(app.selectedWeek);
-    let selectedPerson = $derived(app.people[app.activeBrush ?? -1]);
+    let dayIndex = $derived(selection.selectedDayOfWeek);
+    let weekIndex = $derived(selection.selectedWeek);
+    let selectedPerson = $derived(app.people[selection.person ?? -1]);
 
     // Derive day data from selection
     const dayData = $derived.by(() => {
@@ -49,17 +49,18 @@
                 <span class="text-[13px] font-semibold">
                     {dayData.date.toLocaleDateString("en-GB", { weekday: "long" })}
                 </span>
+
                 <span class="text-[11.5px] text-muted-foreground">
                     {dayData.date.toLocaleDateString("en-GB", {
                         day: "numeric",
                         month: "long",
                         year: "numeric",
-                    })}
+                    })} &ndash; Week {weekIndex! + 1}
                 </span>
             </div>
-        {:else if panelState === "employee" && app.activeBrush !== undefined}
-            {@const { name, rate } = app.people[app.activeBrush]}
-            {@const swatch = PERSON_COLORS[app.activeBrush % PERSON_COLORS.length][1]}
+        {:else if panelState === "employee" && selection.person !== undefined}
+            {@const { name, rate } = app.people[selection.person]}
+            {@const swatch = PERSON_COLORS[selection.person]}
 
             <div class="flex items-center gap-2.5">
                 <span class="w-1.5 h-9 rounded-[3px] shrink-0" style="background:{swatch}"></span>
@@ -86,57 +87,13 @@
             </Empty.Root>
 
             <!-- ── DAY STATE ── -->
-        {:else if panelState === "day" && dayData}
-            <div class="mx-3.5 mb-3 rounded-lg border border-border overflow-hidden bg-background">
-                <div class="flex items-center gap-1.5 px-3 py-2.5 min-h-10.5">
-                    <span
-                        class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-11 shrink-0"
-                        >Lead</span
-                    >
-                    {#if dayData.lead !== null}
-                        {@const person = app.people[dayData.lead]}
-                        {@const swatch = PERSON_COLORS[dayData.lead % PERSON_COLORS.length][1]}
-                        <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"
-                        ></span>
-                        <span class="flex-1 text-[12.5px] font-medium truncate">{person.name}</span>
-                    {:else}
-                        <span class="text-xs text-muted-foreground italic">Unassigned</span>
-                    {/if}
-                </div>
-                <Separator />
-                <div class="flex items-center gap-1.5 px-3 py-2.5 min-h-10.5">
-                    <span
-                        class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-11 shrink-0"
-                        >Support</span
-                    >
-                    {#if dayData.support !== null}
-                        {@const person = app.people[dayData.support]}
-                        {@const swatch = PERSON_COLORS[dayData.support % PERSON_COLORS.length][1]}
-
-                        <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"
-                        ></span>
-                        <span class="flex-1 text-[12.5px] font-medium truncate">{person.name}</span>
-                    {:else}
-                        <span class="text-xs text-muted-foreground italic">Unassigned</span>
-                    {/if}
-                </div>
-            </div>
-
-            <div class="mx-3.5 mb-2.5 text-[11.5px] text-muted-foreground italic">
-                No violations
-            </div>
-
-            <div class="mx-3.5 pt-2.5 border-t border-border">
-                <span
-                    class="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground"
-                    >Week {dayData.weekNumber}</span
-                >
-            </div>
+        {:else if panelState === "day" && selection.day}
+            <InspectorDay day={selection.day} />
 
             <!-- ── EMPLOYEE STATE ── -->
         {:else if panelState === "employee" && selectedPerson}
-            {#if app.activeBrush !== undefined}
-                <InspectEmployee person={app.activeBrush} />
+            {#if selection.person !== undefined}
+                <InspectEmployee person={selection.person} />
             {/if}
         {/if}
     </div>

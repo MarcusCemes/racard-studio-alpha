@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { app } from "$lib/app.svelte.js";
+    import { app, selection } from "$lib/app.svelte.js";
     import { N_DAYS, PERSON_COLORS } from "$lib/defs.js";
     import { NULL_SLOT, getLead, getSupport } from "$lib/slot.js";
     import { cn } from "$lib/utils.js";
@@ -70,8 +70,8 @@
     });
 
     function toggle(index: number) {
-        const sameIndex = app.activeBrush === index;
-        app.activeBrush = sameIndex ? undefined : index;
+        const sameIndex = selection.person === index;
+        selection.person = sameIndex ? undefined : index;
     }
 </script>
 
@@ -90,12 +90,12 @@
             <button
                 class={cn(
                     "flex items-center rounded-md border border-transparent cursor-pointer text-left transition-colors overflow-hidden min-h-[44px]",
-                    app.activeBrush === i
+                    selection.person === i
                         ? "bg-accent border-border"
                         : "bg-transparent hover:bg-accent/50",
                 )}
                 onclick={() => toggle(i)}
-                aria-pressed={app.activeBrush === i}
+                aria-pressed={selection.person === i}
                 title={person.name}
             >
                 <span class="w-1.25 self-stretch shrink-0 rounded-l-md {swatch}"></span>

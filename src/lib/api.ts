@@ -20,9 +20,9 @@ function buildOverrides(
             throw new Error(`Missing bank holiday default hours for weekday index ${bhDayIdx}`);
         }
         const leadDate = format(addDays(bh.date, 1), "yyyy-MM-dd");
-        const leadHours = bh.lead_hours ?? defaults[Role.Lead];
+        const leadHours = bh.lead_hours ?? defaults[0];
         leadMap.set(leadDate, leadHours);
-        const supportHours = bh.support_hours ?? defaults[Role.Support];
+        const supportHours = bh.support_hours ?? defaults[1];
         supportMap.set(bh.date, supportHours);
     }
 

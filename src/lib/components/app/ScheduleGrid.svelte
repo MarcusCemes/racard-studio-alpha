@@ -1,490 +1,341 @@
 <script lang="ts">
-    import { addDays, format, parseISO, startOfISOWeek } from "date-fns";
+    import { addDays, addWeeks, format, parseISO, startOfISOWeek } from "date-fns";
+    import { untrack } from "svelte";
 
-    import { setPerson, swapDays, swapRoles } from "$lib/actions.js";
-    import { app } from "$lib/app.svelte.js";
-    import { N_DAYS, N_WEEKDAYS, PERSON_COLORS, Role, WEEKDAYS } from "$lib/defs.js";
-    import { useHotKeys } from "$lib/hooks/useHotkey.svelte.js";
+    import { setPerson, swapDays, swapRoles } from "$lib/actions";
+    import { GridMode, app, selection, view } from "$lib/app.svelte.js";
+    import { N_DAYS, N_WEEKDAYS, N_WEEKS, Role, WEEKDAYS } from "$lib/defs.js";
+    import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
-    interface DayDescriptor {
-        dayIndex: number;
-        weekNumber: number;
-        dateString: string;
-        mondayLabel: string | null;
-        isWeekend: boolean;
-        isWeekStart: boolean;
-        isNewMonth: boolean;
-        monthLabel: string | null;
-    }
+    // Per-person palette: [bar, bg, text]
+    const PALETTE: [string, string, string][] = [
+        ["#3b82f6", "#dbeafe", "#1e40af"], // blue
+        ["#22c55e", "#dcfce7", "#166534"], // green
+        ["#ef4444", "#fee2e2", "#991b1b"], // red
+        ["#f59e0b", "#fef3c7", "#92400e"], // amber
+        ["#a855f7", "#f3e8ff", "#6b21a8"], // purple
+        ["#ec4899", "#fce7f3", "#9d174d"], // pink
+        ["#6366f1", "#e0e7ff", "#3730a3"], // indigo
+        ["#14b8a6", "#ccfbf1", "#115e59"], // teal
+        ["#06b6d4", "#cffafe", "#155e75"], // cyan
+        ["#84cc16", "#ecfccb", "#3f6212"], // lime
+        ["#f97316", "#ffedd5", "#c2410c"], // orange
+        ["#f43f5e", "#ffe4e6", "#9f1239"], // rose
+        ["#8b5cf6", "#ede9fe", "#5b21b6"], // violet
+        ["#0ea5e9", "#e0f2fe", "#075985"], // sky
+        ["#10b981", "#d1fae5", "#065f46"], // emerald
+    ];
 
-    // ── Delegated click handler ──
+    useHotKey("Escape", () => {
+        if (selection.day !== undefined) {
+            selection.selectSlot();
+        } else if (selection.person !== undefined) {
+            selection.selectPerson();
+        }
+    });
 
-    function handleGridClick(e: MouseEvent) {
-        const target = e.target as HTMLElement;
-        const roleEl = target.closest<HTMLElement>("[data-role]");
-        const dayEl = target.closest<HTMLElement>("[data-day]");
+    let daySelectionMask = $state(Array.from({ length: N_DAYS }, () => 0));
 
-        if (!dayEl) return;
+    // Static structure — only recomputes when startDate changes
+    const weeks = $derived.by(() => {
+        const base = startOfISOWeek(parseISO(app.startDate));
 
-        const dayIndex = Number(dayEl.dataset.day);
-        const role = roleEl ? (Number(roleEl.dataset.role) as Role) : undefined;
-        const mode = app.activeMode;
+        const out: { weekNum: number; days: { dateStr: string; idx: number }[]; month: string }[] =
+            [];
 
-        switch (mode) {
+        for (let w = 0; w < N_WEEKS; w++) {
+            const mon = addWeeks(base, w);
+            const days: { dateStr: string; idx: number }[] = [];
+
+            for (let d = 0; d < N_WEEKDAYS; d++) {
+                days.push({
+                    dateStr: format(addDays(mon, d), "yyyy-MM-dd"),
+                    idx: w * N_WEEKDAYS + d,
+                });
+            }
+
+            out.push({ weekNum: w + 1, days, month: format(mon, "MMMM yyyy") });
+        }
+
+        return out;
+    });
+
+    $effect(() => {
+        untrack(() => {
+            for (let i = 0; i < N_DAYS; i++) {
+                if (daySelectionMask[i] !== 0) {
+                    daySelectionMask[i] = 0;
+                }
+            }
+        });
+
+        if (!selection.day) {
+            return;
+        }
+
+        switch (app.activeMode) {
             case "select":
-                app.selection = { type: "day", dayIndex };
+                daySelectionMask[selection.day] = 1;
                 break;
+
+            case "swap_day":
+                daySelectionMask[selection.day] = 2;
+                break;
+
+            case "swap_role":
+                daySelectionMask[selection.day] = selection.role === Role.Lead ? 3 : 4;
+                break;
+        }
+    });
+
+    function onclick(event: MouseEvent) {
+        event.preventDefault();
+
+        const target = event.target;
+
+        if (!target) {
+            return;
+        }
+
+        switch (app.activeMode) {
+            case "select": {
+                const day = findDay(target);
+
+                if (day !== undefined) {
+                    selection.selectSlot(day);
+                }
+
+                break;
+            }
 
             case "set":
-                if (role !== undefined && app.activeBrush !== undefined) {
-                    setPerson(dayIndex, role, app.activeBrush);
-                }
-                break;
+            case "erase": {
+                const set = app.activeMode === "set";
 
-            case "erase":
-                if (role !== undefined) {
-                    setPerson(dayIndex, role);
-                }
-                break;
+                const day = findDay(target);
+                const role = findRole(target);
 
-            case "swap_role": {
-                if (role === undefined) return;
-                const src = app.swapSource;
-                if (src.type === "role") {
-                    swapRoles(src.dayIndex, dayIndex, src.role, role);
-                    app.swapSource = { type: "none" };
-                } else {
-                    app.swapSource = { type: "role", dayIndex, role };
+                if (day === undefined || !role) {
+                    return;
                 }
+
+                setPerson(day, role[0], set ? selection.person : undefined);
+
                 break;
             }
 
             case "swap_day": {
-                const src = app.swapSource;
-                if (src.type === "day") {
-                    swapDays(src.dayIndex, dayIndex);
-                    app.swapSource = { type: "none" };
-                } else {
-                    app.swapSource = { type: "day", dayIndex };
+                const day = findDay(target);
+
+                if (day === undefined) {
+                    return;
                 }
+
+                const otherDay = selection.day;
+
+                if (otherDay === day) {
+                    return;
+                }
+
+                if (otherDay === undefined) {
+                    selection.selectSlot(day);
+                } else {
+                    swapDays(otherDay, day);
+                    selection.selectSlot();
+                }
+
+                break;
+            }
+
+            case "swap_role": {
+                const day = findDay(target);
+                const role = findRole(target);
+
+                const otherDay = selection.day;
+                const otherRole = selection.role;
+
+                if (day === undefined || !role) {
+                    return;
+                }
+
+                if (otherDay === undefined || !otherRole) {
+                    selection.selectSlot(day, role[0]);
+                } else if (otherDay !== day || otherRole !== role[0]) {
+                    swapRoles(day, otherDay, role[0], otherRole);
+                    selection.selectSlot();
+                }
+
                 break;
             }
         }
     }
 
-    // ── Arrow key navigation (select mode only) ──
+    function findRole(target: EventTarget): [Role, number?] | undefined {
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
 
-    function handleArrowKey(event: KeyboardEvent) {
-        if (app.activeMode !== "select") return;
-        if (app.selection.type !== "day") return;
+        let cursor: HTMLElement | null = target;
 
-        let { dayIndex } = app.selection;
-        let newDay = dayIndex;
+        while (cursor) {
+            for (const role of [Role.Lead, Role.Support]) {
+                if (role in cursor.dataset) {
+                    const typedRole = role as Role;
+                    const value = cursor.dataset[role];
+                    return value ? [typedRole, parseInt(value!)] : [typedRole];
+                }
+            }
 
-        if (event.key === "ArrowUp") newDay -= N_WEEKDAYS;
-        else if (event.key === "ArrowDown") newDay += N_WEEKDAYS;
-        else if (event.key === "ArrowLeft") newDay -= 1;
-        else if (event.key === "ArrowRight") newDay += 1;
-        else return;
-
-        if (newDay >= 0 && newDay < N_DAYS) {
-            app.selection = { type: "day", dayIndex: newDay };
-            event.preventDefault();
+            cursor = cursor.parentElement;
         }
     }
 
-    useHotKeys(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], handleArrowKey);
+    function findDay(target: EventTarget): number | undefined {
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
 
-    // ── Clear selection on mode change ──
+        let cursor: HTMLElement | null = target;
 
-    $effect(() => {
-        void app.activeMode;
-        app.selection = { type: "none" };
-        app.swapSource = { type: "none" };
-    });
-
-    // ── Schedule data generator ──
-
-    function* scheduleDays(): Generator<DayDescriptor> {
-        const baseDate = startOfISOWeek(parseISO(app.startDate));
-        let lastMonth = -1;
-
-        for (let dayIndex = 0; dayIndex < N_DAYS; dayIndex++) {
-            const weekIdx = Math.floor(dayIndex / N_WEEKDAYS);
-            const dayOfWeek = dayIndex % N_WEEKDAYS;
-            const date = addDays(baseDate, dayIndex);
-
-            let isNewMonth = false;
-            let monthLabel: string | null = null;
-            let mondayLabel: string | null = null;
-
-            if (dayOfWeek === 0) {
-                const m = date.getMonth();
-                if (m !== lastMonth) {
-                    isNewMonth = true;
-                    monthLabel = date.toLocaleDateString("en-GB", {
-                        month: "long",
-                        year: "numeric",
-                    });
-                    lastMonth = m;
-                }
-
-                mondayLabel = date.toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                });
+        while (cursor) {
+            if ("day" in cursor.dataset) {
+                return parseInt(cursor.dataset.day!);
             }
 
-            yield {
-                dayIndex,
-                weekNumber: weekIdx + 1,
-                dateString: format(date, "yyyy-MM-dd"),
-                mondayLabel,
-                isWeekend: dayOfWeek >= 5,
-                isWeekStart: dayOfWeek === 0,
-                isNewMonth,
-                monthLabel,
-            };
+            cursor = cursor.parentElement;
         }
     }
 </script>
 
-{#snippet roleHalf(role: Role, personId: number | undefined, day: DayDescriptor)}
-    {@const name = app.formattedNames[personId ?? -1]}
-    {@const swatchClass =
-        personId != null ? PERSON_COLORS[personId % PERSON_COLORS.length][1] : null}
-    {@const isSelected = app.isSelected(day.dayIndex, role)}
-    {@const isSwapSrc = app.isSwapSource(day.dayIndex, role)}
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="flex flex-col flex-1 min-w-0 overflow-hidden" {onclick}>
+    <!-- ── Sticky weekday header ── -->
+    <div class="shrink-0 flex border-b-2 border-border bg-card select-none">
+        <div
+            class="w-10 shrink-0 flex items-center justify-center text-[9px] font-bold tracking-wide text-muted-foreground/50"
+        >
+            W
+        </div>
 
-    <div
-        class="role"
-        class:lead={role === Role.Lead}
-        class:support={role === Role.Support}
-        class:selected={isSelected}
-        class:swap-source={isSwapSrc}
-        data-role={role}
-    >
-        <span class="swatch {swatchClass}" class:swatch-empty={!name}></span>
-        {#if name}
-            <span class="role-name hide-micro">{name}</span>
-        {:else}
-            <span class="role-empty hide-micro">&mdash;</span>
-        {/if}
-    </div>
-{/snippet}
-
-<div class="grid-container flex-1 min-w-0 flex flex-col bg-gray-50 zoom-{app.zoomLevel}">
-    <!-- Sticky header row -->
-    <div class="grid-header sticky top-0 z-10 bg-background border-b border-border">
-        <div class="header-label"></div>
-        {#each WEEKDAYS as day, i}
-            <div class="header-day" class:header-day-weekend={i >= 5}>
+        {#each WEEKDAYS as day, d}
+            <div
+                class={[
+                    "flex-1 min-w-0 text-center text-[10px] font-semibold py-1.5 border-l border-border/40",
+                    d >= 5 && "bg-muted/30 text-muted-foreground/60",
+                ]}
+            >
                 {day}
             </div>
         {/each}
     </div>
 
-    <!-- Grid body -->
-    <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-    <div
-        class="grid-body flex-1 overflow-y-auto"
-        data-mode={app.activeMode}
-        onclick={handleGridClick}
-    >
-        {#each scheduleDays() as day (day.dayIndex)}
-            {#if day.isNewMonth && day.monthLabel}
-                <div class="month-divider">
-                    <span>{day.monthLabel}</span>
-                    <div></div>
+    <!-- ── Scrollable grid body ── -->
+    <div class="flex-1 overflow-y-auto">
+        {#each weeks as week, w (w)}
+            <!-- Month divider (sticky) -->
+            {#if w === 0 || week.month !== weeks[w - 1].month}
+                <div
+                    class="sticky top-0 z-5 bg-card border-b border-border px-3 py-1 text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider select-none"
+                >
+                    {week.month}
                 </div>
             {/if}
 
-            {#if day.isWeekStart}
-                <div class="week-label">
-                    <span class="font-mono text-[10px] font-bold text-muted-foreground"
-                        >W{day.weekNumber}</span
+            <!-- Week row -->
+            <div class="flex border-b border-border/40" style="min-height: 34px">
+                <!-- Week number gutter -->
+                <div
+                    class="w-10 shrink-0 flex items-center justify-center text-[9px] font-mono select-none border-r border-border/40 {selection.selectedWeek ===
+                    w
+                        ? 'bg-secondary text-muted-foreground'
+                        : 'bg-muted/15 text-muted-foreground/50'}"
+                >
+                    {String(week.weekNum).padStart(2, "0")}
+                </div>
+
+                <!-- Day cells -->
+                {#each week.days as day, d (day.idx)}
+                    {@const slot = app.slots[day.idx]}
+                    {@const leadId = getLead(slot)}
+                    {@const suppId = getSupport(slot)}
+                    {@const isHoliday = day.dateStr in app.holidayMap}
+                    {@const isWeekend = d >= 5}
+                    {@const mask = daySelectionMask[day.idx]}
+
+                    <div
+                        data-day={day.idx}
+                        class={[
+                            "flex-1 min-w-0 flex flex-col border-l border-border/30",
+                            isHoliday && "ring-1 ring-inset ring-amber-300/50 bg-amber-50/40",
+                            !isHoliday && isWeekend && "bg-muted/25",
+                            mask === 1 && "ring-blue-500 ring-4 ring-offset-2 z-10",
+                            mask === 2 && "ring-orange-500 ring-4 ring-offset-2 z-10",
+                        ]}
                     >
-                    <span class="week-label-date hide-micro">{day.mondayLabel}</span>
-                </div>
-            {/if}
+                        <!-- Lead half -->
+                        {#if leadId !== undefined}
+                            {@const c = PALETTE[leadId]}
 
-            {@const slot = app.slots[day.dayIndex]}
-            {@const lead = getLead(slot)}
-            {@const support = getSupport(slot)}
-            {@const holiday = app.holidayMap[day.dateString]}
-            {@const isDaySelected = app.isSelected(day.dayIndex)}
-            {@const isDaySwapSrc = app.isSwapSource(day.dayIndex)}
+                            <div
+                                data-lead={leadId}
+                                class={[
+                                    "flex-1 min-h-0 flex items-center overflow-hidden",
+                                    mask === 3 && "ring-pink-500 ring-4 ring-offset-2 z-10 ",
+                                ]}
+                                style="border-left:3px solid {c[0]};{view.gridMode ===
+                                GridMode.Filled
+                                    ? `background:${c[1]}`
+                                    : ''}"
+                            >
+                                <span
+                                    class="px-1 text-[10px] leading-none truncate"
+                                    style="color:{view.gridMode === GridMode.Filled
+                                        ? c[2]
+                                        : 'var(--foreground)'}"
+                                    >{app.formattedNames[leadId] ?? `#${leadId}`}</span
+                                >
+                            </div>
+                        {:else}
+                            <div
+                                class="flex-1 min-h-0 border-l-[3px] border-l-transparent"
+                                data-lead
+                            ></div>
+                        {/if}
 
-            <div
-                class="day-cell"
-                class:weekend={day.isWeekend}
-                class:holiday={!!holiday}
-                class:selected={isDaySelected}
-                class:swap-source={isDaySwapSrc}
-                data-day={day.dayIndex}
-            >
-                {#if holiday}
-                    <span class="holiday-badge hide-micro">{holiday}</span>
-                {/if}
+                        <!-- Support half -->
+                        {#if suppId !== undefined}
+                            {@const c = PALETTE[suppId % 15]}
 
-                {@render roleHalf(Role.Lead, lead, day)}
-                {@render roleHalf(Role.Support, support, day)}
+                            <div
+                                data-support={suppId}
+                                class={[
+                                    "flex-1 min-h-0 flex items-center overflow-hidden border-t border-border/30",
+                                    mask === 4 && "ring-purple-500 ring-4 ring-offset-2 z-10",
+                                ]}
+                                style="border-left:3px solid {c[0]};{view.gridMode ===
+                                GridMode.Filled
+                                    ? `background:${c[1]}`
+                                    : ''}"
+                            >
+                                <span
+                                    class="px-1 text-[10px] leading-none truncate"
+                                    style="color:{view.gridMode === GridMode.Filled
+                                        ? c[2]
+                                        : 'var(--foreground)'}"
+                                    >{app.formattedNames[suppId] ?? `#${suppId}`}</span
+                                >
+                            </div>
+                        {:else}
+                            <div
+                                class="flex-1 min-h-0 border-l-[3px] border-l-transparent border-t border-border/30"
+                                data-support
+                            ></div>
+                        {/if}
+                    </div>
+                {/each}
             </div>
         {/each}
     </div>
 </div>
-
-<style>
-    /* ── Zoom-level CSS custom properties ── */
-    .grid-container {
-        --cell-min-h: 3.375rem;
-        --cell-p-y: 0.1875rem;
-        --cell-p-x: 0.375rem;
-        --cell-radius: 5px;
-        --swatch-size: 0.5625rem;
-        --swatch-rounded: 2px;
-    }
-
-    .grid-container.zoom-micro {
-        --cell-min-h: 2.25rem;
-        --cell-p-y: 0;
-        --cell-p-x: 0;
-        --cell-radius: 4px;
-        --swatch-size: 100%;
-        --swatch-rounded: 0;
-    }
-
-    /* In micro zoom, the swatch fills the entire role area via flex stretch.
-       height: 100% would resolve to 0 (parent computed height is auto),
-       so we clear it and let align-self: stretch handle the cross-axis. */
-    .grid-container.zoom-micro .swatch {
-        height: auto;
-        align-self: stretch;
-    }
-
-    .grid-container.zoom-detail {
-        --cell-min-h: 4.5rem;
-        --cell-p-y: 0.25rem;
-        --cell-p-x: 0.375rem;
-        --cell-radius: 6px;
-        --swatch-size: 0.625rem;
-        --swatch-rounded: 2px;
-    }
-
-    .grid-container.zoom-micro .hide-micro {
-        display: none !important;
-    }
-
-    /* ── Header row ── */
-    .grid-header {
-        display: grid;
-        grid-template-columns: 4.25rem repeat(7, 1fr);
-        flex-shrink: 0;
-    }
-
-    .header-label {
-        /* spacer — width controlled by grid-template-columns */
-        display: block;
-    }
-
-    .header-day {
-        text-align: center;
-        font-size: 0.656rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding-block: 0.25rem;
-        color: var(--color-muted-foreground);
-    }
-
-    .header-day-weekend {
-        opacity: 0.6;
-    }
-
-    /* ── Grid body ── */
-    .grid-body {
-        display: grid;
-        grid-template-columns: 4.25rem repeat(7, 1fr);
-        grid-auto-rows: auto;
-        align-items: start;
-        column-gap: 0.125rem;
-        row-gap: 0.25rem;
-        padding: 0 0.125rem;
-    }
-
-    /* ── Month divider (spans full row) ── */
-    .month-divider {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding-block: 0.5rem 0.125rem;
-    }
-
-    .month-divider span {
-        font-size: 0.688rem;
-        font-weight: 600;
-        color: var(--color-muted-foreground);
-        letter-spacing: 0.04em;
-    }
-
-    .month-divider div {
-        flex: 1;
-        height: 1px;
-        background: var(--color-border);
-    }
-
-    /* ── Week label ── */
-    .week-label {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        padding-right: 0.375rem;
-        gap: 1px;
-        min-height: var(--cell-min-h);
-    }
-
-    .week-label-date {
-        font-size: 0.594rem;
-        color: var(--color-muted-foreground);
-        opacity: 0.7;
-    }
-
-    /* ── Day cell ── */
-    .day-cell {
-        min-height: var(--cell-min-h);
-        border-radius: var(--cell-radius);
-        background: var(--color-card);
-        border: 1.5px solid transparent;
-        display: flex;
-        flex-direction: column;
-        position: relative;
-    }
-
-    .day-cell.weekend {
-        background: oklch(0.963 0.002 197.1 / 0.2);
-    }
-
-    .day-cell.holiday {
-        background: oklch(0.85 0.15 85 / 0.05);
-        border-color: oklch(0.85 0.15 85 / 0.2);
-    }
-
-    /* ── Holiday badge ── */
-    .holiday-badge {
-        position: absolute;
-        top: 0.125rem;
-        right: 0.1875rem;
-        font-size: 0.469rem;
-        color: oklch(0.65 0.15 80);
-        background: oklch(0.85 0.15 85 / 0.1);
-        padding: 0 0.25rem;
-        padding-block: 0.05rem;
-        border-radius: 0.15rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    /* ── Role halves ── */
-    .role {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        padding-inline: var(--cell-p-x);
-        padding-block: var(--cell-p-y);
-        justify-content: center;
-    }
-
-    @media (min-width: 640px) {
-        .role {
-            justify-content: flex-start;
-        }
-    }
-
-    .role.lead {
-        border-bottom: 1px solid var(--color-border);
-    }
-
-    .grid-container.zoom-detail .role {
-        flex-wrap: wrap;
-    }
-
-    /* ── Role content ── */
-    .role-name {
-        font-size: 0.656rem;
-        font-weight: 600;
-        line-height: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .role-empty {
-        font-size: 0.656rem;
-        color: var(--color-muted-foreground);
-        opacity: 0.4;
-        font-style: italic;
-        line-height: 1;
-    }
-
-    /* ── Swatch ── */
-    .swatch {
-        flex-shrink: 0;
-        width: var(--swatch-size);
-        height: var(--swatch-size);
-        border-radius: var(--swatch-rounded);
-    }
-
-    .swatch-empty {
-        visibility: hidden;
-    }
-
-    /* ── Selection visual states ── */
-
-    .day-cell.selected {
-        border-color: oklch(0.55 0.22 260);
-        box-shadow: 0 0 0 1px oklch(0.55 0.22 260 / 0.45);
-    }
-
-    .day-cell.swap-source {
-        border-color: oklch(0.65 0.18 50);
-        border-style: dashed;
-        animation: swap-pulse 1.4s ease-in-out infinite;
-    }
-
-    .role.selected {
-        background: oklch(0.55 0.22 260 / 0.12);
-        box-shadow: inset 0 0 0 1px oklch(0.55 0.22 260 / 0.25);
-    }
-
-    .role.swap-source {
-        background: oklch(0.65 0.18 50 / 0.12);
-        box-shadow: inset 0 0 0 1px oklch(0.65 0.18 50 / 0.25);
-    }
-
-    @keyframes swap-pulse {
-        0%,
-        100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.7;
-        }
-    }
-
-    /* ── Mode-driven cursors ── */
-
-    .grid-body[data-mode="select"] .day-cell,
-    .grid-body[data-mode="swap_day"] .day-cell {
-        cursor: pointer;
-    }
-
-    .grid-body[data-mode="set"] .role,
-    .grid-body[data-mode="erase"] .role,
-    .grid-body[data-mode="swap_role"] .role {
-        cursor: pointer;
-    }
-</style>

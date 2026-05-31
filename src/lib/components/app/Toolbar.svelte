@@ -24,7 +24,7 @@
     import { Toggle } from "$lib/components/ui/toggle/index.js";
     import * as Tooltip from "$lib/components/ui/tooltip/index.js";
     import { APP_NAME } from "$lib/defs.js";
-    import { useHotKeys } from "$lib/hooks/useHotkey.svelte";
+    import { useHotKeys } from "$lib/hooks/useHotkey.svelte.js";
 
     import Checkpoints from "./Checkpoints.svelte";
 

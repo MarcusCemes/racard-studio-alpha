@@ -69,11 +69,7 @@ class AppState {
     topK = $state(5);
 
     // --- Interaction states ---
-    selection = $state<SelectionTarget>({ type: "none" });
-    swapSource = $state<SelectionTarget>({ type: "none" });
-    activeBrush = $state<number>();
     activeMode = $state<ActiveMode>("select");
-    zoomLevel = $state<ZoomLevel>("standard");
 
     // --- Operation state (from events only) ---
     activeOp = $state<OperationKind | null>(null);
@@ -139,41 +135,6 @@ class AppState {
         }
     };
 
-    isSelected(dayIndex: number, role?: Role): boolean {
-        const sel = this.selection;
-        if (sel.type === "none") return false;
-
-        if (role !== undefined) {
-            return sel.type === "role" && sel.dayIndex === dayIndex && sel.role === role;
-        }
-
-        return sel.type === "day" && sel.dayIndex === dayIndex;
-    }
-
-    isSwapSource(dayIndex: number, role?: Role): boolean {
-        const src = this.swapSource;
-
-        if (src.type === "none") {
-            return false;
-        }
-
-        if (role !== undefined) {
-            return src.type === "role" && src.dayIndex === dayIndex && src.role === role;
-        }
-
-        return src.type === "day" && src.dayIndex === dayIndex;
-    }
-
-    get selectedWeek(): number | undefined {
-        if (this.selection.type === "none") return undefined;
-        return Math.floor(this.selection.dayIndex / N_WEEKDAYS);
-    }
-
-    get selectedDayOfWeek(): number | undefined {
-        if (this.selection.type === "none") return undefined;
-        return this.selection.dayIndex % N_WEEKDAYS;
-    }
-
     restoreCheckpoint = (checkpoint: Checkpoint) => {
         const { slots } = checkpoint;
 
@@ -231,7 +192,50 @@ export class History {
     }
 }
 
+export class Selection {
+    day = $state<number>();
+    person = $state<number>();
+    role = $state<Role>();
+
+    selectPerson = (person?: number) => {
+        this.person = person;
+    };
+
+    selectSlot = (day?: number, role?: Role) => {
+        this.day = day;
+        this.role = role;
+    };
+
+    get hasSelection(): boolean {
+        return this.day !== undefined;
+    }
+
+    get selectedWeek(): number | undefined {
+        if (this.day === undefined) {
+            return;
+        }
+
+        return Math.floor(this.day / N_WEEKDAYS);
+    }
+
+    get selectedDayOfWeek(): number | undefined {
+        if (this.day === undefined) {
+            return;
+        }
+
+        return this.day % N_WEEKDAYS;
+    }
+}
+
+export class View {
+    gridMode = $state(GridMode.Filled);
+    zoom = $state(ZoomLevel.Standard);
+}
+
 let currentApp = $state(new AppState());
+
+export const selection = $state(new Selection());
+export const view = $state(new View());
 
 export const app = new Proxy({} as AppState, {
     get(_, prop) {
@@ -260,12 +264,17 @@ export interface Checkpoint {
 }
 
 export type ActiveMode = "select" | "set" | "swap_role" | "swap_day" | "erase";
-export type ZoomLevel = "micro" | "standard" | "detail";
 
-export type SelectionTarget =
-    | { type: "none" }
-    | { type: "day"; dayIndex: number }
-    | { type: "role"; dayIndex: number; role: Role };
+export enum GridMode {
+    Filled = "filled",
+    Bars = "bars",
+}
+
+export enum ZoomLevel {
+    Micro = "micro",
+    Standard = "standard",
+    Detail = "detail",
+}
 
 function newStartDate(): string {
     return format(startOfISOWeek(new Date()), "yyyy-MM-dd");

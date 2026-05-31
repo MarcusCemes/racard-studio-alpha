@@ -10,7 +10,7 @@
  *   NULL_SLOT = 0xFF — "no person" for the entire slot (both roles empty)
  */
 import { N_DAYS, Role } from "./defs.js";
-import type { Slot } from "./schemas.js";
+import type { Slot, Slots } from "./schemas.js";
 
 export const NULL_ID = 0xf as Slot;
 export const NULL_SLOT = 0xff as Slot;
@@ -34,13 +34,13 @@ export function getRole(slot: number, role: Role): number | undefined {
 /** Return a new slot with the lead role set. Pass undefined to clear. */
 export function setLead(slot: Slot, personId: number | undefined): Slot {
     const id = personId ?? NULL_ID;
-    return ((slot & 0xf) | (id << 4)) as Slot;
+    return ((slot & 0xf) | ((id & 0xf) << 4)) as Slot;
 }
 
 /** Return a new slot with the support role set. Pass undefined to clear. */
 export function setSupport(slot: Slot, personId: number | undefined): Slot {
     const id = personId ?? NULL_ID;
-    return ((slot & 0xf0) | id) as Slot;
+    return ((slot & 0xf0) | (id & 0xf)) as Slot;
 }
 
 export function setRole(slot: Slot, role: Role, personId: number | undefined): Slot {

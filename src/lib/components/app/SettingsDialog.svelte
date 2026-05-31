@@ -40,7 +40,7 @@
         PERSON_COLORS,
         WEEKDAYS,
     } from "$lib/defs.js";
-    import { useHotKey } from "$lib/hooks/useHotkey.svelte";
+    import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
     import { plural } from "$lib/misc";
     import type { Person } from "$lib/schemas.js";
 

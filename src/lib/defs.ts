@@ -1,8 +1,8 @@
 import type { Holiday } from "./schemas.js";
 
 export enum Role {
-    Lead,
-    Support,
+    Lead = "lead",
+    Support = "support",
 }
 
 export const APP_NAME = "Racard Studio";

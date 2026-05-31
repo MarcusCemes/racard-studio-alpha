@@ -21,8 +21,6 @@ pub struct ScheduleStatistics {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct PersonStatistics {
-    pub name: String,
-    /// Stats for each of the N_WEEKS
     pub weeks: Vec<WeeklyPersonStats>,
     pub totals: FinalPersonStats,
 }
@@ -43,8 +41,8 @@ pub struct FinalPersonStats {
     pub expected_hours: f32,
     pub lead_fridays: u8,
     pub support_fridays: u8,
-    pub long_weekends: u8,   // Saturday Lead
-    pub short_weekends: u8,  // Saturday Support
+    pub long_weekends: u8,  // Saturday Lead
+    pub short_weekends: u8, // Saturday Support
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,7 +83,6 @@ impl ScheduleStatistics {
             .people
             .iter()
             .map(|p| PersonStatistics {
-                name: p.name.clone(),
                 weeks: Vec::with_capacity(N_WEEKS),
                 totals: FinalPersonStats {
                     expected_hours: p.rate.weekly_hours() * N_WEEKS as f32,
