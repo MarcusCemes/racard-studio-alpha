@@ -30,7 +30,7 @@ import type {
 
 class AppState {
     // --- Problem inputs (raw, editable) ---
-    startDate = newStartDate();
+    startDate = $state(newStartDate());
     people = $state<Person[]>(newPeople());
     weekdayHours = $state<[number, number][]>(DEFAULT_WEEKDAY_HOURS);
     bankHolidayDefaultHours = $state<[number, number][]>(DEFAULT_BANK_HOLIDAY_HOURS);
@@ -229,6 +229,8 @@ export class Selection {
 
 export class View {
     gridMode = $state(GridMode.Filled);
+    showConflicts = $state(true);
+    showHolidays = $state(true);
     zoom = $state(ZoomLevel.Standard);
 }
 

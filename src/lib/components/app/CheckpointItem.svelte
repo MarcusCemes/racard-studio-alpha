@@ -36,13 +36,10 @@
                 >
             {:else}
                 <button
-                    class={[
-                        "cursor-pointer",
-                        checkpoint.name.includes("Unnamed") && "italic text-muted-foreground",
-                    ]}
+                    class={["cursor-pointer", !checkpoint.name && "italic text-muted-foreground"]}
                     onclick={editTitle}
                 >
-                    {checkpoint.name}
+                    {checkpoint.name || "Unnamed"}
                 </button>
             {/if}
         </Item.Title>

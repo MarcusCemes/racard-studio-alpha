@@ -296,3 +296,48 @@ export type Conflict =
     | { Holiday: [number, number] }
     | { Role: [number, number] }
     | { WorkCount: [number, number] };
+
+/* === Save / Load === */
+
+export type CheckpointRecord = z.infer<typeof checkpointRecordSchema>;
+export const checkpointRecordSchema = z.object({
+    name: z.string(),
+    slots: slotsSchema,
+    timestamp: z.number().int(),
+});
+
+export type RawBankHoliday = z.infer<typeof rawBankHolidaySchema>;
+export const rawBankHolidaySchema = z.object({
+    date: dateSchema,
+    name: z.string(),
+    enabled: z.boolean(),
+    lead_hours: z.number().nullable(),
+    support_hours: z.number().nullable(),
+});
+
+export type RawCustomOverride = z.infer<typeof rawCustomOverrideSchema>;
+export const rawCustomOverrideSchema = z.object({
+    date: dateSchema,
+    role: z.string(),
+    hours: z.number(),
+});
+
+export type RawSettings = z.infer<typeof rawSettingsSchema>;
+export const rawSettingsSchema = z.object({
+    bank_holidays: z.array(rawBankHolidaySchema),
+    bank_holiday_default_hours: z.array(z.tuple([z.number(), z.number()])).length(7),
+    custom_overrides: z.array(rawCustomOverrideSchema),
+});
+
+export type ProjectFile = z.infer<typeof projectFileSchema>;
+export const projectFileSchema = z.object({
+    version: z.number().int(),
+    config: problemConfigSchema,
+    raw: rawSettingsSchema,
+    solution: slotsSchema,
+    solver: solverParametersSchema,
+    refiner: refinementParametersSchema,
+    weights: fitnessWeightsSchema,
+    top_k: z.number().int(),
+    checkpoints: z.array(checkpointRecordSchema),
+});

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { addDays, format, getISODay } from "date-fns";
 
-import { Role } from "$lib/defs.js";
 import type * as T from "$lib/schemas.js";
 
 function buildOverrides(
@@ -181,4 +181,40 @@ export async function exportSchedule(schedule: T.Schedule) {
 
 export async function showMainWindow() {
     await invoke("show_main_window");
+}
+
+/* === Save / Load === */
+
+export async function apiSaveProject(project: T.ProjectFile) {
+    let path = await dialogSave({
+        defaultPath: `schedule.rcs`,
+        filters: [{ name: "Racard Studio (.rcs)", extensions: ["rcs"] }],
+    });
+
+    if (!path) {
+        return;
+    }
+
+    if (!path.endsWith(".rcs")) {
+        path += ".rcs";
+    }
+
+    await invoke("save_project", { path, project });
+}
+
+export async function apiLoadProject(): Promise<T.ProjectFile | undefined> {
+    const path = await dialogOpen({
+        multiple: false,
+        directory: false,
+        filters: [
+            { name: "Racard Studio (.rcs)", extensions: ["rcs"] },
+            { name: "All Files", extensions: ["*"] },
+        ],
+    });
+
+    if (!path) {
+        return;
+    }
+
+    return await invoke<T.ProjectFile>("load_project", { path });
 }

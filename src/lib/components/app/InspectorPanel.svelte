@@ -16,7 +16,7 @@
 
     // Derive day data from selection
     const dayData = $derived.by(() => {
-        if (dayIndex == null || weekIndex == null) return null;
+        if (dayIndex == undefined || weekIndex == undefined) return null;
 
         const baseDate = startOfISOWeek(parseISO(app.startDate));
         const monday = addWeeks(baseDate, weekIndex);
@@ -35,7 +35,11 @@
     });
 
     const panelState = $derived(
-        dayIndex != null && weekIndex != null ? "day" : selectedPerson ? "employee" : "idle",
+        dayIndex != undefined && weekIndex != undefined
+            ? "day"
+            : selectedPerson
+              ? "employee"
+              : "idle",
     );
 </script>
 

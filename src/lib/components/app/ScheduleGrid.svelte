@@ -5,6 +5,7 @@
     import { setPerson, swapDays, swapRoles } from "$lib/actions";
     import { GridMode, app, selection, view } from "$lib/app.svelte.js";
     import { N_DAYS, N_WEEKDAYS, N_WEEKS, Role, WEEKDAYS } from "$lib/defs.js";
+    import { useGridNavigation } from "$lib/hooks/useGridNavigation";
     import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
@@ -34,10 +35,11 @@
             selection.selectPerson();
         }
     });
+    useGridNavigation();
 
     let daySelectionMask = $state(Array.from({ length: N_DAYS }, () => 0));
 
-    // Static structure — only recomputes when startDate changes
+    // Compute grid layout indices (on startDate change)
     const weeks = $derived.by(() => {
         const base = startOfISOWeek(parseISO(app.startDate));
 
@@ -61,6 +63,7 @@
         return out;
     });
 
+    // Update daySelectionMask on selection change
     $effect(() => {
         untrack(() => {
             for (let i = 0; i < N_DAYS; i++) {
@@ -70,7 +73,7 @@
             }
         });
 
-        if (!selection.day) {
+        if (selection.day === undefined) {
             return;
         }
 
@@ -260,15 +263,15 @@
                     {@const slot = app.slots[day.idx]}
                     {@const leadId = getLead(slot)}
                     {@const suppId = getSupport(slot)}
-                    {@const isHoliday = day.dateStr in app.holidayMap}
+                    {@const hasConflict = view.showConflicts && day.idx in app.conflictMap}
+                    {@const isHoliday = view.showHolidays && day.dateStr in app.holidayMap}
                     {@const isWeekend = d >= 5}
                     {@const mask = daySelectionMask[day.idx]}
 
                     <div
                         data-day={day.idx}
                         class={[
-                            "flex-1 min-w-0 flex flex-col border-l border-border/30",
-                            isHoliday && "ring-1 ring-inset ring-amber-300/50 bg-amber-50/40",
+                            "flex-1 min-w-0 flex flex-col border-l border-border/30 relative",
                             !isHoliday && isWeekend && "bg-muted/25",
                             mask === 1 && "ring-blue-500 ring-4 ring-offset-2 z-10",
                             mask === 2 && "ring-orange-500 ring-4 ring-offset-2 z-10",
@@ -276,61 +279,69 @@
                     >
                         <!-- Lead half -->
                         {#if leadId !== undefined}
-                            {@const c = PALETTE[leadId]}
+                            {@const [c0, c1, c2] = PALETTE[leadId]}
 
                             <div
                                 data-lead={leadId}
                                 class={[
-                                    "flex-1 min-h-0 flex items-center overflow-hidden",
-                                    mask === 3 && "ring-pink-500 ring-4 ring-offset-2 z-10 ",
+                                    "flex-1 min-h-0 min-w-0 flex items-center",
+                                    mask === 3 && "ring-pink-500 ring-4 ring-offset-2 z-10",
                                 ]}
-                                style="border-left:3px solid {c[0]};{view.gridMode ===
-                                GridMode.Filled
-                                    ? `background:${c[1]}`
+                                style="border-left:3px solid {c0};{view.gridMode === GridMode.Filled
+                                    ? `background:${c1}`
                                     : ''}"
                             >
                                 <span
                                     class="px-1 text-[10px] leading-none truncate"
                                     style="color:{view.gridMode === GridMode.Filled
-                                        ? c[2]
+                                        ? c2
                                         : 'var(--foreground)'}"
                                     >{app.formattedNames[leadId] ?? `#${leadId}`}</span
                                 >
                             </div>
                         {:else}
                             <div
-                                class="flex-1 min-h-0 border-l-[3px] border-l-transparent"
+                                class="flex-1 min-h-0 min-w-0 border-l-[3px] border-l-transparent"
                                 data-lead
                             ></div>
                         {/if}
 
                         <!-- Support half -->
                         {#if suppId !== undefined}
-                            {@const c = PALETTE[suppId % 15]}
+                            {@const [c0, c1, c2] = PALETTE[suppId % 15]}
 
                             <div
                                 data-support={suppId}
                                 class={[
-                                    "flex-1 min-h-0 flex items-center overflow-hidden border-t border-border/30",
+                                    "flex-1 min-h-0 min-w-0 flex items-center border-t border-border/30",
                                     mask === 4 && "ring-purple-500 ring-4 ring-offset-2 z-10",
                                 ]}
-                                style="border-left:3px solid {c[0]};{view.gridMode ===
-                                GridMode.Filled
-                                    ? `background:${c[1]}`
+                                style="border-left:3px solid {c0};{view.gridMode === GridMode.Filled
+                                    ? `background:${c1}`
                                     : ''}"
                             >
                                 <span
                                     class="px-1 text-[10px] leading-none truncate"
                                     style="color:{view.gridMode === GridMode.Filled
-                                        ? c[2]
+                                        ? c2
                                         : 'var(--foreground)'}"
                                     >{app.formattedNames[suppId] ?? `#${suppId}`}</span
                                 >
                             </div>
                         {:else}
                             <div
-                                class="flex-1 min-h-0 border-l-[3px] border-l-transparent border-t border-border/30"
+                                class="flex-1 min-h-0 min-w-0 border-l-[3px] border-l-transparent border-t border-border/30"
                                 data-support
+                            ></div>
+                        {/if}
+
+                        {#if hasConflict}
+                            <div
+                                class="absolute inset-0 bg-red-500/20 z-1 pointer-events-none"
+                            ></div>
+                        {:else if isHoliday}
+                            <div
+                                class="absolute inset-0 bg-amber-400/20 z-1 pointer-events-none"
                             ></div>
                         {/if}
                     </div>

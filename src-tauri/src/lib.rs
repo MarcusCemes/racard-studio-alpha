@@ -3,6 +3,7 @@ use tauri::Manager;
 use crate::types::ActiveOperationState;
 
 mod commands;
+mod save;
 mod types;
 
 pub fn run() {
@@ -12,6 +13,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::geneva_bank_holidays,
             commands::interrupt,
@@ -20,6 +22,8 @@ pub fn run() {
             commands::solve,
             commands::statistics,
             commands::validate,
+            save::load_project,
+            save::save_project,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri application error");

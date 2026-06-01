@@ -14,6 +14,9 @@ importers:
       '@tauri-apps/api':
         specifier: ^2
         version: 2.11.0
+      '@tauri-apps/plugin-dialog':
+        specifier: ^2
+        version: 2.7.1
       '@tauri-apps/plugin-opener':
         specifier: ^2
         version: 2.5.4
@@ -30,9 +33,6 @@ importers:
       '@fontsource-variable/geist':
         specifier: latest
         version: 5.2.9
-      '@fontsource-variable/inter':
-        specifier: ^5.2.8
-        version: 5.2.8
       '@internationalized/date':
         specifier: ^3.12.1
         version: 3.12.1
@@ -318,9 +318,6 @@ packages:
 
   '@fontsource-variable/geist@5.2.9':
     resolution: {integrity: sha512-TP+QSBG3wxKGPE33CbMy/L0Nu3qvJ6Fy81Yc4LnQ95xH+i+cfEp8fyU8/kfV14YwszxIFPhnoMTbjL71waVpyQ==}
-
-  '@fontsource-variable/inter@5.2.8':
-    resolution: {integrity: sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ==}
 
   '@internationalized/date@3.12.1':
     resolution: {integrity: sha512-6IedsVWXyq4P9Tj+TxuU8WGWM70hYLl12nbYU8jkikVpa6WXapFazPUcHUMDMoWftIDE2ILDkFFte6W2nFCkRQ==}
@@ -718,6 +715,9 @@ packages:
     resolution: {integrity: sha512-bk3HemqvGRoy+5D/dVMUQHKMYLglD0jVnMm/0iGMH6ufZ+p8r14m6BpIixwij3PBvZdvORUp1YifTD8QxVZ1Nw==}
     engines: {node: '>= 10'}
     hasBin: true
+
+  '@tauri-apps/plugin-dialog@2.7.1':
+    resolution: {integrity: sha512-OK1UBXYt+ojcmxMktzzuyonYIFta8CmAASpX+CA+DTGK24KlHjhYI6x2iOJ/TjZF4N7/ACK1oFmEOjIY9IhzOQ==}
 
   '@tauri-apps/plugin-opener@2.5.4':
     resolution: {integrity: sha512-1HnPkb+AmgO29HBazm4uPLKB+r7zzcTBW1d0fyYp1uP+jwtpoiNDGKMMzz58SFp49nOIrxdE3aUJtT57lfO9CQ==}
@@ -1589,8 +1589,6 @@ snapshots:
 
   '@fontsource-variable/geist@5.2.9': {}
 
-  '@fontsource-variable/inter@5.2.8': {}
-
   '@internationalized/date@3.12.1':
     dependencies:
       '@swc/helpers': 0.5.23
@@ -1890,6 +1888,10 @@ snapshots:
       '@tauri-apps/cli-win32-arm64-msvc': 2.11.2
       '@tauri-apps/cli-win32-ia32-msvc': 2.11.2
       '@tauri-apps/cli-win32-x64-msvc': 2.11.2
+
+  '@tauri-apps/plugin-dialog@2.7.1':
+    dependencies:
+      '@tauri-apps/api': 2.11.0
 
   '@tauri-apps/plugin-opener@2.5.4':
     dependencies:

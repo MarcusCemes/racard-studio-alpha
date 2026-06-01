@@ -19,7 +19,7 @@
 
     function createCheckpoint() {
         app.checkpoints.push({
-            name: "Unnamed Checkpoint",
+            name: "",
             slots: [...app.slots],
             timestamp: timestamp(),
         });
