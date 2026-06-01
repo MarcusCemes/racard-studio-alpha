@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { Check } from "@lucide/svelte";
+
     import { app } from "$lib/app.svelte.js";
     import { Separator } from "$lib/components/ui/separator/index.js";
     import * as Table from "$lib/components/ui/table/index.js";
@@ -13,9 +15,12 @@
 
     let slot = $derived(app.slots[day]);
     let week = $derived(Math.floor(day / N_WEEKDAYS));
+    let dayOfWeek = $derived(day % N_WEEKDAYS);
 
     let lead = $derived(getLead(slot));
     let support = $derived(getSupport(slot));
+
+    let conflicts = $derived(app.conflictMap[day] ?? []);
 </script>
 
 <div class="mx-3.5 mb-3 rounded-lg border border-border overflow-hidden bg-background">
@@ -24,13 +29,17 @@
             class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-11 shrink-0"
             >Lead</span
         >
+        <span class="text-[10px] text-muted-foreground font-mono">
+            {app.weekdayHours[dayOfWeek][0]}h
+        </span>
 
         {#if lead !== undefined}
             {@const [, swatch] = PERSON_COLORS[lead]}
-            <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"></span>
+            <span class="w-2.5 h-2.5 rounded-[3px] shrink-0 ml-2" style="background:{swatch}"
+            ></span>
             <span class="flex-1 text-[12.5px] font-medium truncate">{app.people[lead].name}</span>
         {:else}
-            <span class="text-xs text-muted-foreground italic">Unassigned</span>
+            <span class="text-xs text-muted-foreground italic ml-2">Unassigned</span>
         {/if}
     </div>
 
@@ -41,22 +50,43 @@
             class="text-[10px] font-bold uppercase tracking-[0.07em] text-muted-foreground w-11 shrink-0"
             >Support</span
         >
+        <span class="text-[10px] text-muted-foreground font-mono">
+            {app.weekdayHours[dayOfWeek][1]}h
+        </span>
         {#if support !== undefined}
             {@const [, swatch] = PERSON_COLORS[support]}
 
-            <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="background:{swatch}"></span>
+            <span class="w-2.5 h-2.5 rounded-[3px] shrink-0 ml-2" style="background:{swatch}"
+            ></span>
             <span class="flex-1 text-[12.5px] font-medium truncate">{app.people[support].name}</span
             >
         {:else}
-            <span class="text-xs text-muted-foreground italic">Unassigned</span>
+            <span class="text-xs text-muted-foreground italic ml-2">Unassigned</span>
         {/if}
     </div>
 </div>
 
-<div class="mx-3.5 mb-2.5 text-[11.5px] text-muted-foreground italic">No violations</div>
+<!-- Inline conflicts -->
+<div class="mx-3.5 mb-3 mt-3">
+    {#if conflicts.length === 0}
+        <div class="flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-500">
+            <Check class="size-3" />
+            <span>No conflicts</span>
+        </div>
+    {:else}
+        <div class="flex flex-col gap-1">
+            {#each conflicts as msg}
+                <div class="flex items-start gap-1.5 text-[11px] text-red-600 dark:text-red-500">
+                    <span class="shrink-0 mt-0.5">⚠</span>
+                    <span>{msg}</span>
+                </div>
+            {/each}
+        </div>
+    {/if}
+</div>
 
 {#if app.statistics}
-    <div class="mt-8 px-4">
+    <div class="mt-4 px-4">
         <Table.Root class="text-xs">
             <Table.Caption>Weekly totals</Table.Caption>
             <Table.Header>

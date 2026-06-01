@@ -14,6 +14,7 @@
 
     import { apiInterrupt, apiOrchestrate, apiRefine, apiSolve } from "$lib/api.js";
     import { type ActiveMode, app } from "$lib/app.svelte.js";
+    import AnalyticsDialog from "$lib/components/app/AnalyticsDialog.svelte";
     import SettingsDialog from "$lib/components/app/SettingsDialog.svelte";
     import ToolbarHistory from "$lib/components/app/ToolbarHistory.svelte";
     import ToolbarMenu from "$lib/components/app/ToolbarMenu.svelte";
@@ -184,6 +185,7 @@
 
     <div class="flex-1 flex items-center justify-end gap-4">
         <Checkpoints />
+        <AnalyticsDialog />
         <SettingsDialog />
         <ToolbarHistory />
 

@@ -1,20 +1,22 @@
 <script lang="ts">
-    import { SquareDashedMousePointer } from "@lucide/svelte";
     import { addDays, addWeeks, parseISO, startOfISOWeek } from "date-fns";
 
     import { app, selection } from "$lib/app.svelte.js";
-    import * as Empty from "$lib/components/ui/empty/index.js";
+    import * as Badge from "$lib/components/ui/badge/index.js";
+    import * as Tabs from "$lib/components/ui/tabs/index.js";
     import { N_WEEKDAYS, PERSON_COLORS } from "$lib/defs.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
     import InspectEmployee from "./InspectEmployee.svelte";
+    import InspectorConflicts from "./InspectorConflicts.svelte";
     import InspectorDay from "./InspectorDay.svelte";
+
+    let activeTab = $state("conflicts");
 
     let dayIndex = $derived(selection.selectedDayOfWeek);
     let weekIndex = $derived(selection.selectedWeek);
     let selectedPerson = $derived(app.people[selection.person ?? -1]);
 
-    // Derive day data from selection
     const dayData = $derived.by(() => {
         if (dayIndex == undefined || weekIndex == undefined) return null;
 
@@ -34,21 +36,24 @@
         };
     });
 
-    const panelState = $derived(
-        dayIndex != undefined && weekIndex != undefined
-            ? "day"
-            : selectedPerson
-              ? "employee"
-              : "idle",
-    );
+    const conflictCount = $derived(app.conflicts.length);
+
+    // Auto-switch tabs based on selection
+    $effect(() => {
+        if (selection.day !== undefined) {
+            activeTab = "day";
+        } else if (selection.person !== undefined) {
+            activeTab = "person";
+        } else {
+            activeTab = "conflicts";
+        }
+    });
 </script>
 
 <aside class="w-72 shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
     <!-- Header -->
     <div class="px-3.5 py-3 border-b border-border shrink-0">
-        {#if panelState === "idle"}
-            <span class="text-[13px] font-semibold">Inspector</span>
-        {:else if panelState === "day" && dayData}
+        {#if activeTab === "day" && dayData}
             <div class="flex flex-col gap-0.5">
                 <span class="text-[13px] font-semibold">
                     {dayData.date.toLocaleDateString("en-GB", { weekday: "long" })}
@@ -62,7 +67,7 @@
                     })} &ndash; Week {weekIndex! + 1}
                 </span>
             </div>
-        {:else if panelState === "employee" && selection.person !== undefined}
+        {:else if activeTab === "person" && selection.person !== undefined}
             {@const { name, rate } = app.people[selection.person]}
             {@const swatch = PERSON_COLORS[selection.person]}
 
@@ -73,32 +78,52 @@
                     <span class="text-[11px] text-muted-foreground">{rate}%</span>
                 </div>
             </div>
+        {:else}
+            <span class="text-[13px] font-semibold">Inspector</span>
         {/if}
     </div>
 
-    <div class="flex-1 overflow-y-auto flex flex-col py-2.5">
-        <!-- ── IDLE STATE ── -->
-        {#if panelState === "idle"}
-            <Empty.Root class="flex-1 opacity-60">
-                <Empty.Header>
-                    <Empty.Media variant="icon">
-                        <SquareDashedMousePointer />
-                    </Empty.Media>
+    <!-- Tabs -->
+    <Tabs.Root bind:value={activeTab} class="flex-1 flex flex-col overflow-hidden">
+        <Tabs.List class="mx-3.5 mt-2 mb-1 shrink-0">
+            <Tabs.Trigger
+                value="day"
+                disabled={dayIndex == undefined}
+                title={dayIndex == undefined ? "Click a day in the grid" : ""}
+            >
+                Day
+            </Tabs.Trigger>
+            <Tabs.Trigger
+                value="person"
+                disabled={selection.person === undefined}
+                title={selection.person === undefined ? "Click an employee in the roster" : ""}
+            >
+                Person
+            </Tabs.Trigger>
+            <Tabs.Trigger value="conflicts" class="gap-1">
+                Conflicts
+                {#if conflictCount > 0}
+                    <Badge.Badge variant="destructive" class="text-[9px] px-1 h-3.5 font-mono">
+                        {conflictCount}
+                    </Badge.Badge>
+                {/if}
+            </Tabs.Trigger>
+        </Tabs.List>
 
-                    <Empty.Title>Inspector</Empty.Title>
-                    <Empty.Description>Click on something to view its details.</Empty.Description>
-                </Empty.Header>
-            </Empty.Root>
+        <Tabs.Content value="day" class="flex-1 overflow-y-auto py-2.5">
+            {#if selection.day !== undefined}
+                <InspectorDay day={selection.day} />
+            {/if}
+        </Tabs.Content>
 
-            <!-- ── DAY STATE ── -->
-        {:else if panelState === "day" && selection.day}
-            <InspectorDay day={selection.day} />
-
-            <!-- ── EMPLOYEE STATE ── -->
-        {:else if panelState === "employee" && selectedPerson}
+        <Tabs.Content value="person" class="flex-1 overflow-y-auto py-2.5">
             {#if selection.person !== undefined}
                 <InspectEmployee person={selection.person} />
             {/if}
-        {/if}
-    </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="conflicts" class="flex-1 overflow-y-auto py-2.5">
+            <InspectorConflicts />
+        </Tabs.Content>
+    </Tabs.Root>
 </aside>

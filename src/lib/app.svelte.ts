@@ -10,7 +10,7 @@ import {
     N_WEEKDAYS,
     Role,
 } from "./defs.js";
-import { parseConflict } from "./misc.js";
+import { formatDayIdx, parseConflict } from "./misc.js";
 import type {
     BankHoliday,
     Conflict,
@@ -118,11 +118,11 @@ class AppState {
         const map: Record<number, string[]> = {};
 
         for (const conflict of this.conflicts) {
-            const parsedConflict = parseConflict(conflict);
+            const parsed = parseConflict(conflict, formatDayIdx);
 
-            if (parsedConflict.type === "day") {
-                if (!map[parsedConflict.index]) map[parsedConflict.index] = [];
-                map[parsedConflict.index].push(parsedConflict.message);
+            if (parsed.scope === "day") {
+                if (!map[parsed.scopeIndex]) map[parsed.scopeIndex] = [];
+                map[parsed.scopeIndex].push(parsed.description);
             }
         }
 

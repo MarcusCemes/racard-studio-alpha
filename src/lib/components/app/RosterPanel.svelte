@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { Check } from "@lucide/svelte";
+
     import { app, selection } from "$lib/app.svelte.js";
     import { N_DAYS, PERSON_COLORS } from "$lib/defs.js";
     import { NULL_SLOT, getLead, getSupport } from "$lib/slot.js";
@@ -10,6 +12,8 @@
         leadShifts: number;
         supportShifts: number;
         hasViolations: boolean;
+        delta?: number;
+        pct?: number;
     }
 
     const stats = $derived.by(() => {
@@ -66,6 +70,19 @@
             }
         }
 
+        // Add hour deltas from statistics
+        if (app.statistics) {
+            map.forEach((entry, i) => {
+                const personStats = app.statistics?.people[i];
+                if (personStats) {
+                    const { totals } = personStats;
+                    entry.delta = totals.total_hours_worked - totals.expected_hours;
+                    entry.pct =
+                        totals.expected_hours > 0 ? (entry.delta / totals.expected_hours) * 100 : 0;
+                }
+            });
+        }
+
         return [...map.values()];
     });
 
@@ -104,18 +121,61 @@
                         >{person.name}</span
                     >
                     {#if s}
-                        <div class="flex items-center gap-1.5 font-mono text-[10.5px]">
-                            <span class="text-muted-foreground">{s.totalShifts}sh</span>
-                            <span class="text-muted-foreground"
-                                >L{s.leadShifts}/S{s.supportShifts}</span
-                            >
-                            {#if s.hasViolations}
-                                <span
-                                    class="bg-red-500 text-white text-[9.5px] font-bold rounded-full px-1.5 py-px font-mono leading-snug"
-                                    >!</span
+                        {#if s.delta !== undefined && s.pct !== undefined}
+                            <!-- Hour delta display -->
+                            <div class="flex flex-col gap-0.5">
+                                <div class="h-1 w-full rounded bg-border overflow-hidden">
+                                    <div
+                                        class={cn(
+                                            "h-full transition-all",
+                                            Math.abs(s.pct!) < 2
+                                                ? "bg-green-500"
+                                                : Math.abs(s.pct!) < 10
+                                                  ? "bg-amber-500"
+                                                  : "bg-red-500",
+                                        )}
+                                        style:width="{Math.min(Math.abs(s.pct!), 110)}%"
+                                    ></div>
+                                </div>
+                                <div class="flex items-center gap-1 font-mono text-[10px]">
+                                    <span
+                                        class={cn(
+                                            "min-w-[28px]",
+                                            Math.abs(s.pct) < 2
+                                                ? "text-green-600 dark:text-green-500"
+                                                : Math.abs(s.pct) < 10
+                                                  ? "text-amber-600 dark:text-amber-500"
+                                                  : "text-red-600 dark:text-red-500",
+                                        )}
+                                    >
+                                        {s.delta > 0 ? "+" : ""}{s.delta.toFixed(0)}h
+                                    </span>
+                                    {#if Math.abs(s.pct) < 2}
+                                        <Check class="size-2.5 text-green-500" />
+                                    {/if}
+                                    {#if s.hasViolations}
+                                        <span
+                                            class="ml-auto bg-red-500 text-white text-[9px] font-bold rounded-full px-1 py-px leading-none"
+                                            >!</span
+                                        >
+                                    {/if}
+                                </div>
+                            </div>
+                        {:else}
+                            <!-- Fallback: shift counts -->
+                            <div class="flex items-center gap-1.5 font-mono text-[10.5px]">
+                                <span class="text-muted-foreground">{s.totalShifts}sh</span>
+                                <span class="text-muted-foreground"
+                                    >L{s.leadShifts}/S{s.supportShifts}</span
                                 >
-                            {/if}
-                        </div>
+                                {#if s.hasViolations}
+                                    <span
+                                        class="bg-red-500 text-white text-[9.5px] font-bold rounded-full px-1.5 py-px font-mono leading-snug"
+                                        >!</span
+                                    >
+                                {/if}
+                            </div>
+                        {/if}
                     {/if}
                 </div>
                 {#if person.rate < 100}

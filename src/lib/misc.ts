@@ -1,37 +1,63 @@
+import { N_WEEKDAYS, WEEKDAYS } from "./defs.js";
 import type { Conflict } from "./schemas.js";
 
-export function parseConflict(conflict: Conflict): {
-    type: "day" | "week";
-    index: number;
-    message: string;
-} {
+export interface ParsedConflict {
+    type: "ConsecutiveDay" | "Holiday" | "Role" | "WorkCount";
+    personIdx: number;
+    description: string;
+    scope: "day" | "week";
+    scopeIndex: number;
+}
+
+export function parseConflict(
+    conflict: Conflict,
+    formatDay: (dayIdx: number) => string,
+): ParsedConflict {
     if ("ConsecutiveDay" in conflict) {
+        const [person, dayA, dayB] = conflict.ConsecutiveDay;
         return {
-            type: "day",
-            index: conflict.ConsecutiveDay[0],
-            message: `Consecutive day conflict: ${conflict.ConsecutiveDay[0]} - ${conflict.ConsecutiveDay[1]} (${conflict.ConsecutiveDay[2]} hours)`,
+            type: "ConsecutiveDay",
+            personIdx: person,
+            description: `${formatDay(dayA)} → ${formatDay(dayB)}`,
+            scope: "day",
+            scopeIndex: dayA,
         };
     } else if ("Holiday" in conflict) {
+        const [person, day] = conflict.Holiday;
         return {
-            type: "day",
-            index: conflict.Holiday[0],
-            message: `Holiday conflict: ${conflict.Holiday[0]} - ${conflict.Holiday[1]}`,
+            type: "Holiday",
+            personIdx: person,
+            description: formatDay(day),
+            scope: "week",
+            scopeIndex: Math.floor(day / N_WEEKDAYS),
         };
     } else if ("Role" in conflict) {
+        const [person, day] = conflict.Role;
         return {
-            type: "day",
-            index: conflict.Role[0],
-            message: `Role conflict: ${conflict.Role[0]} - ${conflict.Role[1]}`,
+            type: "Role",
+            personIdx: person,
+            description: formatDay(day),
+            scope: "day",
+            scopeIndex: day,
         };
     } else if ("WorkCount" in conflict) {
+        const [person, week] = conflict.WorkCount;
         return {
-            type: "week",
-            index: conflict.WorkCount[0],
-            message: `Work count conflict: ${conflict.WorkCount[0]} - ${conflict.WorkCount[1]}`,
+            type: "WorkCount",
+            personIdx: person,
+            description: `Week ${week + 1}`,
+            scope: "week",
+            scopeIndex: week,
         };
     }
 
     throw new Error("Unknown conflict type");
+}
+
+export function formatDayIdx(dayIdx: number): string {
+    const week = Math.floor(dayIdx / N_WEEKDAYS) + 1;
+    const day = WEEKDAYS[dayIdx % N_WEEKDAYS];
+    return `${day} Wk ${week}`;
 }
 
 export function plural(n: number, singular: string, plural?: string): string {
