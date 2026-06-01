@@ -1,0 +1,56 @@
+name: "publish"
+
+on:
+    push:
+    workflow_dispatch:
+
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+    publish-tauri:
+        permissions:
+            contents: write
+        strategy:
+            fail-fast: false
+            matrix:
+                platform: [macos-15-intel, macos-latest, windows-latest]
+
+        runs-on: ${{ matrix.platform }}
+        steps:
+            - uses: actions/checkout@v5
+
+            - name: setup pnpm
+              uses: pnpm/action-setup@v6
+              with:
+                  version: 10
+
+            - name: setup node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: "pnpm"
+
+            - name: install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: "src-tauri -> target"
+
+            - name: install frontend dependencies
+              run: pnpm i --frozen-lockfile
+
+            - name: build and publish
+              uses: tauri-apps/tauri-action@v0
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+                  # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: ${{ runner.os }}-${{ runner.arch }}
+                  path: |
+                      src-tauri/target/release/bundle/macos/**/*
+                      src-tauri/target/release/bundle/msi/**/*
