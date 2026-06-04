@@ -12,8 +12,8 @@ pub fn run() {
             app.manage(ActiveOperationState::default());
             Ok(())
         })
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::geneva_bank_holidays,
             commands::interrupt,
@@ -26,5 +26,5 @@ pub fn run() {
             save::save_project,
         ])
         .run(tauri::generate_context!())
-        .expect("Tauri application error");
+        .expect("tauri application error");
 }

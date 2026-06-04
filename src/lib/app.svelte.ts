@@ -273,9 +273,8 @@ export enum GridMode {
 }
 
 export enum ZoomLevel {
-    Micro = "micro",
     Standard = "standard",
-    Detail = "detail",
+    Weekly = "weekly",
 }
 
 function newStartDate(): string {

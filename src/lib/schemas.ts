@@ -232,6 +232,7 @@ export type WeeklyPersonStats = z.infer<typeof weeklyPersonStatsSchema>;
 export const weeklyPersonStatsSchema = z.object({
     hours_by_role: z.tuple([z.number(), z.number()]),
     cumulative_hours: z.number(),
+    role_counts: z.tuple([z.number(), z.number()]),
     slots_count: z.number().int(),
 });
 
@@ -247,7 +248,6 @@ export const finalPersonStatsSchema = z.object({
 
 export type PersonStatistics = z.infer<typeof personStatisticsSchema>;
 export const personStatisticsSchema = z.object({
-    name: z.string(),
     weeks: z.array(weeklyPersonStatsSchema).length(N_WEEKS),
     totals: finalPersonStatsSchema,
 });
@@ -271,6 +271,7 @@ export const scheduleFitnessSchema = z.object({
 
 export type ScheduleStatistics = z.infer<typeof scheduleStatisticsSchema>;
 export const scheduleStatisticsSchema = z.object({
+    hours: z.array(z.tuple([z.number(), z.number()])),
     people: z.array(personStatisticsSchema),
     summary: globalStatisticsSchema,
     fitness: scheduleFitnessSchema,

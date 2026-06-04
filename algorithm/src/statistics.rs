@@ -9,8 +9,10 @@ use crate::{
 };
 
 /// Complete statistics for a schedule
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ScheduleStatistics {
+    /// Daily hours for both roles (N_ROLES * N_DAYS)
+    pub hours: HourAssignments,
     /// Statistics for each person in the problem (in order)
     pub people: Vec<PersonStatistics>,
     /// Global metrics
@@ -31,6 +33,8 @@ pub struct WeeklyPersonStats {
     pub hours_by_role: [f32; Role::COUNT],
     /// Total hours worked up to and including this week (includes holiday credit)
     pub cumulative_hours: f32,
+    /// Number of times each role was worked this week
+    pub role_counts: [u8; Role::COUNT],
     /// Number of working slots this week (excluding phantom shifts)
     pub slots_count: u8,
 }
@@ -98,6 +102,7 @@ impl ScheduleStatistics {
         for week in WeekIdx::iter() {
             let week_idx = week.get() as usize;
             let mut weekly_hours = vec![[0.0f32; Role::COUNT]; n_people];
+            let mut weekly_role_counts = vec![[0u8; Role::COUNT]; n_people];
             let mut weekly_slots = vec![0u8; n_people];
 
             for day_offset in 0..N_WEEKDAYS {
@@ -113,6 +118,7 @@ impl ScheduleStatistics {
                             running_totals[p_idx] += hours;
 
                             if !Self::is_phantom(day_idx, role, &phantom_shifts) {
+                                weekly_role_counts[p_idx][role] += 1;
                                 weekly_slots[p_idx] += 1;
 
                                 if day_offset == fri_offset {
@@ -145,6 +151,7 @@ impl ScheduleStatistics {
                 people_stats[p_idx].weeks.push(WeeklyPersonStats {
                     hours_by_role: weekly_hours[p_idx],
                     cumulative_hours: running_totals[p_idx],
+                    role_counts: weekly_role_counts[p_idx],
                     slots_count: weekly_slots[p_idx],
                 });
             }
@@ -164,6 +171,7 @@ impl ScheduleStatistics {
         let fitness = evaluator.evaluate(&SlotArrayRef(schedule));
 
         ScheduleStatistics {
+            hours: hour_assignments,
             people: people_stats,
             summary,
             fitness,
@@ -204,6 +212,7 @@ impl ScheduleStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::PersonIdx;
     use crate::utils::sample_people;
     use chrono::NaiveDate;
 
@@ -212,16 +221,22 @@ mod tests {
         let start_date = NaiveDate::from_ymd_opt(2024, 8, 19).unwrap();
         let weekday_hours = [[14.5, 7.5]; N_WEEKDAYS];
 
+        let people = sample_people();
         let problem = ProblemInput::try_new(
             start_date,
-            sample_people().to_vec(),
+            people.to_vec(),
             ProblemOverrides::default(),
             weekday_hours,
             3,
         )
         .unwrap();
 
-        let slots = [Slot::default(); N_DAYS];
+        // Assign one Lead and one Support to person 0 in week 0 (Mon, Tue)
+        let p0 = PersonIdx::new(0).unwrap();
+        let mut slots = [Slot::default(); N_DAYS];
+        slots[0] = slots[0].with(Role::Lead, p0);
+        slots[1] = slots[1].with(Role::Support, p0);
+
         let stats = ScheduleStatistics::compute(&problem, &slots, &Weights::STANDARD);
 
         // Smoke test: just verify compute() doesn't panic.
@@ -232,5 +247,13 @@ mod tests {
 
         // Expected hours should match problem people
         assert!(stats.summary.theoretical_hours > 0.0);
+
+        assert_eq!(stats.hours[0][Role::Lead], 14.5);
+
+        // role_counts: person 0 should have 1 Lead + 1 Support in week 0
+        let w0 = &stats.people[0].weeks[0];
+        assert_eq!(w0.role_counts[Role::Lead], 1);
+        assert_eq!(w0.role_counts[Role::Support], 1);
+        assert_eq!(w0.slots_count, 2);
     }
 }

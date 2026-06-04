@@ -142,9 +142,8 @@
         <Menubar.Content>
             <Menubar.RadioGroup bind:value={view.zoom}>
                 <Menubar.GroupHeading>Zoom level</Menubar.GroupHeading>
-                <Menubar.RadioItem value={ZoomLevel.Micro}>Micro</Menubar.RadioItem>
                 <Menubar.RadioItem value={ZoomLevel.Standard}>Standard</Menubar.RadioItem>
-                <Menubar.RadioItem value={ZoomLevel.Detail}>Detail</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Weekly}>Weekly</Menubar.RadioItem>
             </Menubar.RadioGroup>
 
             <Menubar.Separator />

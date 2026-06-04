@@ -504,7 +504,11 @@ impl Distribution<Role> for StandardUniform {
 
 /* -- AssignableHours -- */
 
-pub struct HourAssignments(Box<[[f32; Role::COUNT]; N_DAYS]>);
+#[serde_as]
+#[derive(Debug, Serialize)]
+pub struct HourAssignments(
+    #[serde_as(as = "[[_; Role::COUNT]; N_DAYS]")] Box<[[f32; Role::COUNT]; N_DAYS]>,
+);
 
 impl HourAssignments {
     pub fn new(

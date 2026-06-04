@@ -37,7 +37,6 @@ export function undo() {
     const slots = app.history.undo(app.slots);
 
     if (slots) {
-        console.log("[undo] applying slots", slots);
         app.loadSlots(slots);
     }
 }
@@ -48,7 +47,6 @@ export function redo() {
     const slots = app.history.redo(app.slots);
 
     if (slots) {
-        console.log("[redo] applying slots", slots);
         app.loadSlots(slots);
     }
 }

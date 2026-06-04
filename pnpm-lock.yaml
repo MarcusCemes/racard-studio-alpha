@@ -37,8 +37,8 @@ importers:
         specifier: ^3.12.1
         version: 3.12.1
       '@lucide/svelte':
-        specifier: ^0.577.0
-        version: 0.577.0(svelte@5.55.9)
+        specifier: ^1.17.0
+        version: 1.17.0(svelte@5.55.9)
       '@sveltejs/adapter-static':
         specifier: latest
         version: 3.0.10(@sveltejs/kit@2.61.1(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.55.9)(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)))(svelte@5.55.9)(typescript@5.6.3)(vite@6.4.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)))
@@ -350,8 +350,8 @@ packages:
   '@layerstack/utils@2.0.0-next.18':
     resolution: {integrity: sha512-EYILHpfBRYMMEahajInu9C2AXQom5IcAEdtCeucD3QIl/fdDgRbtzn6/8QW9ewumfyNZetdUvitOksmI1+gZYQ==}
 
-  '@lucide/svelte@0.577.0':
-    resolution: {integrity: sha512-0P6mkySd2MapIEgq08tADPmcN4DHndC/02PWwaLkOerXlx5Sv9aT4BxyXLIY+eccr0g/nEyCYiJesqS61YdBZQ==}
+  '@lucide/svelte@1.17.0':
+    resolution: {integrity: sha512-q06YCFBN5CO8cd1ADmLCxWRVMVb7xxvHzqC0lvNoxGa+FLW6Cd1Y1AOxgbQk4Iwe68vkAMCRveNHint4WoaVKg==}
     peerDependencies:
       svelte: ^5
 
@@ -1635,7 +1635,7 @@ snapshots:
       d3-time: 3.1.0
       d3-time-format: 4.1.0
 
-  '@lucide/svelte@0.577.0(svelte@5.55.9)':
+  '@lucide/svelte@1.17.0(svelte@5.55.9)':
     dependencies:
       svelte: 5.55.9
 
