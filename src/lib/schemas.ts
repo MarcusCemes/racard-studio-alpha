@@ -293,7 +293,7 @@ export const holidaySchema = z.enum([
 ]);
 
 export type Conflict =
-    | { ConsecutiveDay: [number, number, number] }
+    | { ConsecutiveDay: [number, number] }
     | { Holiday: [number, number] }
     | { Role: [number, number] }
     | { WorkCount: [number, number] };

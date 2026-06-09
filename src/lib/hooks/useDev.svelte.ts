@@ -2,7 +2,7 @@ import { untrack } from "svelte";
 
 import { dev } from "$app/environment";
 import { app } from "$lib/app.svelte.js";
-import type { ScheduleStatistics, Slots } from "$lib/schemas.js";
+import type { Conflict, ScheduleStatistics, Slots } from "$lib/schemas.js";
 
 export function useDev() {
     if (!dev) return;
@@ -33,6 +33,7 @@ export function useDev() {
             app.refinerParams = refinementParameters;
             app.topK = 5;
 
+            app.conflicts = sampleConflicts();
             app.statistics = sampleStatistics();
         });
     });
@@ -163,7 +164,18 @@ function sampleSave() {
     };
 }
 
-function sampleStatistics() {
+function sampleConflicts(): Conflict[] {
+    return [
+        { ConsecutiveDay: [1, 2] },
+        { ConsecutiveDay: [1, 5] },
+        { ConsecutiveDay: [1, 22] },
+        { ConsecutiveDay: [1, 48] },
+        { ConsecutiveDay: [1, 63] },
+        { ConsecutiveDay: [1, 89] },
+    ];
+}
+
+function sampleStatistics(): ScheduleStatistics {
     return {
         hours: [
             [13.5, 7.5],
@@ -2915,5 +2927,5 @@ function sampleStatistics() {
             weekly_hours: 46.09329,
             blank_weeks: 0,
         },
-    } satisfies ScheduleStatistics;
+    };
 }

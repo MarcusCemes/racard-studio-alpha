@@ -10,7 +10,7 @@ use crate::{
 
 #[derive(Copy, Clone, Debug, Serialize)]
 pub enum Conflict {
-    ConsecutiveDay(PersonIdx, DayIdx, DayIdx),
+    ConsecutiveDay(PersonIdx, DayIdx),
     Holiday(PersonIdx, DayIdx),
     Role(PersonIdx, DayIdx),
     WorkCount(PersonIdx, WeekIdx),
@@ -39,9 +39,9 @@ impl<'a, S: ScheduleView> ScheduleValidator<'a, S> {
             .tuple_windows()
             .filter(|((_, a), _)| a.weekday() != Weekday::Sat) // exempt Sat→Sun per spec
             .flat_map(
-                |((a, a_idx), (b, b_idx))| match (a.get(Role::Lead), b.get(Role::Support)) {
+                |((a, a_idx), (b, _b_idx))| match (a.get(Role::Lead), b.get(Role::Support)) {
                     (Some(lead_a), Some(lead_b)) if lead_a == lead_b => {
-                        Some(Conflict::ConsecutiveDay(lead_a, a_idx, b_idx))
+                        Some(Conflict::ConsecutiveDay(lead_a, a_idx))
                     }
 
                     _ => None,

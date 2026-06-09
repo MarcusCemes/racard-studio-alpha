@@ -3,7 +3,7 @@
 
     import { redo, undo } from "$lib/actions.js";
     import { apiLoadProject, apiSaveProject, buildProblemConfig } from "$lib/api.js";
-    import { GridMode, ZoomLevel, app, resetApp, view } from "$lib/app.svelte.js";
+    import { GridMode, ViewMode, ZoomLevel, app, resetApp, view } from "$lib/app.svelte.js";
     import * as Menubar from "$lib/components/ui/menubar/index.js";
     import type { CheckpointRecord, ProjectFile } from "$lib/schemas.js";
 
@@ -140,10 +140,16 @@
         <Menubar.Trigger>View</Menubar.Trigger>
 
         <Menubar.Content>
+            <Menubar.RadioGroup bind:value={view.mode}>
+                <Menubar.GroupHeading>View mode</Menubar.GroupHeading>
+                <Menubar.RadioItem value={ViewMode.Calendar}>Calendar</Menubar.RadioItem>
+                <Menubar.RadioItem value={ViewMode.Weekly}>Weekly</Menubar.RadioItem>
+            </Menubar.RadioGroup>
+
             <Menubar.RadioGroup bind:value={view.zoom}>
                 <Menubar.GroupHeading>Zoom level</Menubar.GroupHeading>
-                <Menubar.RadioItem value={ZoomLevel.Standard}>Standard</Menubar.RadioItem>
-                <Menubar.RadioItem value={ZoomLevel.Weekly}>Weekly</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Normal}>Normal</Menubar.RadioItem>
+                <Menubar.RadioItem value={ZoomLevel.Comfy}>Comfy</Menubar.RadioItem>
             </Menubar.RadioGroup>
 
             <Menubar.Separator />

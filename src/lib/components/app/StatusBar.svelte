@@ -1,10 +1,10 @@
 <script lang="ts">
-    import { AlertTriangle } from "@lucide/svelte";
+    import { Check, TriangleAlert } from "@lucide/svelte";
 
     import { app } from "$lib/app.svelte.js";
     import StatusMonitor from "$lib/components/misc/StatusMonitor.svelte";
-    import { Button } from "$lib/components/ui/button/index.js";
-    import { Separator } from "$lib/components/ui/separator/index.js";
+    import { Badge } from "$lib/components/ui/badge/index.js";
+    import { plural } from "$lib/misc";
 
     let fitnessTotal = $derived(
         app.statistics?.fitness
@@ -22,7 +22,7 @@
             : [],
     );
 
-    let violationCount = $derived(app.conflicts.length);
+    let numberConflicts = $derived(app.conflicts.length);
 </script>
 
 <footer
@@ -41,24 +41,17 @@
         </div>
     </div>
 
-    <div class="flex items-center gap-2">
-        {#if violationCount > 0}
-            <Button
-                variant="ghost"
-                size="xs"
-                class="text-red-500 hover:bg-red-500/10 text-[11px] font-semibold py-0.5 px-1.5 h-auto rounded"
-                title="View all violations"
-            >
-                <AlertTriangle size={12} />
-                <span>{violationCount} violation{violationCount !== 1 ? "s" : ""}</span>
-            </Button>
+    <div class="flex items-center gap-4">
+        {#if numberConflicts == 0}
+            <Badge class="flex items-center gap-2" variant="destructive">
+                <TriangleAlert class="size-3" />
+                <span>{numberConflicts} {plural(numberConflicts, "conflict")}</span>
+            </Badge>
         {:else}
-            <span class="text-green-500 font-semibold text-[11px]">✓ No violations</span>
+            <span class="flex items-center gap-1 text-green-600"
+                ><Check class="size-3" /> Valid schedule</span
+            >
         {/if}
-        <Separator orientation="vertical" class="h-3.5" />
-        <span class="text-[10.5px] text-muted-foreground font-mono"
-            >Undo: {app.history.length} steps</span
-        >
 
         <StatusMonitor />
     </div>

@@ -223,7 +223,7 @@ total = Σ(weight * component)
 
 ```rust
 enum Conflict {
-    ConsecutiveDay(PersonIdx, DayIdx, DayIdx),  // Lead day X → Support day X+1
+    ConsecutiveDay(PersonIdx, DayIdx),  // Lead day X → Support day X+1
     Holiday(PersonIdx, DayIdx),                 // Working during holiday week
     Role(PersonIdx, DayIdx),                    // Lead == Support in same slot
     WorkCount(PersonIdx, WeekIdx),              // >1 weekday shift + weekend work

@@ -1,12 +1,22 @@
 <script lang="ts">
-    import { addDays, addWeeks, format, parseISO, startOfISOWeek } from "date-fns";
+    import {
+        addDays,
+        addWeeks,
+        format,
+        formatISO,
+        getDate,
+        parseISO,
+        startOfISOWeek,
+    } from "date-fns";
     import { untrack } from "svelte";
 
     import { setPerson, swapDays, swapRoles } from "$lib/actions";
-    import { GridMode, app, selection, view } from "$lib/app.svelte.js";
+    import { GridMode, ZoomLevel, app, selection, view } from "$lib/app.svelte.js";
+    import * as Tooltip from "$lib/components/ui/tooltip/index.js";
     import { N_DAYS, N_WEEKDAYS, N_WEEKS, Role, WEEKDAYS } from "$lib/defs.js";
     import { useGridNavigation } from "$lib/hooks/useGridNavigation";
     import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
+    import { type ParsedConflict } from "$lib/misc.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
     // Per-person palette: [bar, bg, text]
@@ -63,6 +73,45 @@
         return out;
     });
 
+    function* iterWeeks() {
+        const base = startOfISOWeek(parseISO(app.startDate));
+
+        for (let weekIdx = 0; weekIdx < N_WEEKS; weekIdx++) {
+            const monday = addWeeks(base, weekIdx);
+            const sunday = addDays(monday, N_WEEKDAYS - 1);
+            const selected = selection.selectedWeek === weekIdx;
+            const weekLabel = (weekIdx + 1).toString().padStart(2, "0");
+
+            const header =
+                (weekIdx === 0 || getDate(sunday) <= N_WEEKDAYS) && format(sunday, "MMMM yyyy");
+
+            yield {
+                header,
+                selected,
+                weekIdx,
+                weekLabel,
+            };
+        }
+    }
+
+    function* iterDays(weekIdx: number) {
+        for (let i = 0; i < N_WEEKDAYS; i++) {
+            const dayIdx = weekIdx * N_WEEKDAYS + i;
+            const slot = app.slots[dayIdx];
+            const lead = getLead(slot);
+            const support = getSupport(slot);
+            const mask = daySelectionMask[dayIdx];
+
+            const date = addDays(app.startDate, dayIdx);
+            const formattedDate = format(date, "dd/MM");
+            const isoDate = formatISO(date, { representation: "date" });
+            const conflicts = app.conflictMap.get(dayIdx);
+            const bankHoliday = app.bankHolidays.find((h) => h.date === isoDate);
+
+            yield { bankHoliday, conflicts, dayIdx, formattedDate, lead, mask, support };
+        }
+    }
+
     // Update daySelectionMask on selection change
     $effect(() => {
         untrack(() => {
@@ -106,7 +155,7 @@
                 const day = findDay(target);
 
                 if (day !== undefined) {
-                    selection.selectSlot(day);
+                    selection.selectSlot(day === selection.day ? undefined : day);
                 }
 
                 break;
@@ -137,14 +186,13 @@
 
                 const otherDay = selection.day;
 
-                if (otherDay === day) {
-                    return;
-                }
-
                 if (otherDay === undefined) {
                     selection.selectSlot(day);
                 } else {
-                    swapDays(otherDay, day);
+                    if (otherDay !== day) {
+                        swapDays(otherDay, day);
+                    }
+
                     selection.selectSlot();
                 }
 
@@ -236,53 +284,72 @@
 
     <!-- ── Scrollable grid body ── -->
     <div class="flex-1 overflow-y-auto">
-        {#each weeks as week, w (w)}
+        {#each iterWeeks() as { header, selected, weekIdx, weekLabel } (weekIdx)}
             <!-- Month divider (sticky) -->
-            {#if w === 0 || week.month !== weeks[w - 1].month}
+            {#if header}
                 <div
-                    class="sticky top-0 z-5 bg-card border-b border-border px-3 py-1 text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider select-none"
+                    class={[
+                        "sticky top-0 z-5 bg-card border-b border-border px-3 py-1 text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider",
+                        weekIdx > 0 && "mt-4",
+                    ]}
                 >
-                    {week.month}
+                    {header}
                 </div>
             {/if}
 
             <!-- Week row -->
-            <div class="flex border-b border-border/40" style="min-height: 34px">
+            <div
+                class={[
+                    "flex border-b border-border/40",
+                    view.zoom === ZoomLevel.Comfy ? "h-16" : "h-12",
+                ]}
+            >
                 <!-- Week number gutter -->
                 <div
-                    class="w-10 shrink-0 flex items-center justify-center text-[9px] font-mono select-none border-r border-border/40 {selection.selectedWeek ===
-                    w
+                    class="w-10 shrink-0 flex items-center justify-center text-[9px] font-mono select-none border-r border-border/40 {selected
                         ? 'bg-secondary text-muted-foreground'
                         : 'bg-muted/15 text-muted-foreground/50'}"
                 >
-                    {String(week.weekNum).padStart(2, "0")}
+                    {weekLabel}
                 </div>
 
                 <!-- Day cells -->
-                {#each week.days as day, d (day.idx)}
-                    {@const slot = app.slots[day.idx]}
-                    {@const leadId = getLead(slot)}
-                    {@const suppId = getSupport(slot)}
-                    {@const hasConflict = view.showConflicts && day.idx in app.conflictMap}
-                    {@const isHoliday = view.showHolidays && day.dateStr in app.holidayMap}
-                    {@const isWeekend = d >= 5}
-                    {@const mask = daySelectionMask[day.idx]}
-
+                {#each iterDays(weekIdx) as { bankHoliday, conflicts, dayIdx, formattedDate, lead, mask, support } (dayIdx)}
                     <div
-                        data-day={day.idx}
+                        data-day={dayIdx}
                         class={[
                             "flex-1 min-w-0 flex flex-col border-l border-border/30 relative",
-                            !isHoliday && isWeekend && "bg-muted/25",
-                            mask === 1 && "ring-blue-500 ring-4 ring-offset-2 z-10",
-                            mask === 2 && "ring-orange-500 ring-4 ring-offset-2 z-10",
+                            [1, 2].includes(mask) && "ring-4 ring-offset-2 z-10",
+                            mask === 1 && "ring-blue-500",
+                            mask === 2 && "ring-orange-500",
+                            bankHoliday && "bg-yellow-50",
                         ]}
                     >
+                        <!-- Day date -->
+                        <div class="flex mt-2 mb-1 px-2 text-[8px] text-neutral-500 font-medium">
+                            <div class="flex-1">{formattedDate}</div>
+
+                            {#if conflicts}
+                                {#each conflicts as conflict}
+                                    {@render conflictIndicator(conflict)}
+                                {/each}
+                            {/if}
+
+                            {#if bankHoliday}
+                                <Tooltip.Root>
+                                    <Tooltip.Trigger class="ml-2 bg-yellow-600 size-2"
+                                    ></Tooltip.Trigger>
+                                    <Tooltip.Content>{bankHoliday.name}</Tooltip.Content>
+                                </Tooltip.Root>
+                            {/if}
+                        </div>
+
                         <!-- Lead half -->
-                        {#if leadId !== undefined}
-                            {@const [c0, c1, c2] = PALETTE[leadId]}
+                        {#if lead !== undefined}
+                            {@const [c0, c1, c2] = PALETTE[lead]}
 
                             <div
-                                data-lead={leadId}
+                                data-lead={lead}
                                 class={[
                                     "flex-1 min-h-0 min-w-0 flex items-center",
                                     mask === 3 && "ring-pink-500 ring-4 ring-offset-2 z-10",
@@ -296,7 +363,7 @@
                                     style="color:{view.gridMode === GridMode.Filled
                                         ? c2
                                         : 'var(--foreground)'}"
-                                    >{app.formattedNames[leadId] ?? `#${leadId}`}</span
+                                    >{app.formattedNames[lead] ?? `#${lead}`}</span
                                 >
                             </div>
                         {:else}
@@ -307,11 +374,11 @@
                         {/if}
 
                         <!-- Support half -->
-                        {#if suppId !== undefined}
-                            {@const [c0, c1, c2] = PALETTE[suppId % 15]}
+                        {#if support !== undefined}
+                            {@const [c0, c1, c2] = PALETTE[support % 15]}
 
                             <div
-                                data-support={suppId}
+                                data-support={support}
                                 class={[
                                     "flex-1 min-h-0 min-w-0 flex items-center border-t border-border/30",
                                     mask === 4 && "ring-purple-500 ring-4 ring-offset-2 z-10",
@@ -325,7 +392,7 @@
                                     style="color:{view.gridMode === GridMode.Filled
                                         ? c2
                                         : 'var(--foreground)'}"
-                                    >{app.formattedNames[suppId] ?? `#${suppId}`}</span
+                                    >{app.formattedNames[support] ?? `#${support}`}</span
                                 >
                             </div>
                         {:else}
@@ -334,19 +401,19 @@
                                 data-support
                             ></div>
                         {/if}
-
-                        {#if hasConflict}
-                            <div
-                                class="absolute inset-0 bg-red-500/20 z-1 pointer-events-none"
-                            ></div>
-                        {:else if isHoliday}
-                            <div
-                                class="absolute inset-0 bg-amber-400/20 z-1 pointer-events-none"
-                            ></div>
-                        {/if}
                     </div>
                 {/each}
             </div>
         {/each}
     </div>
 </div>
+
+{#snippet conflictIndicator(conflict: ParsedConflict)}
+    <Tooltip.Root>
+        <Tooltip.Trigger class="bg-red-500 size-2 rounded-full"></Tooltip.Trigger>
+
+        <Tooltip.Content>
+            {conflictMessage(conflict)}
+        </Tooltip.Content>
+    </Tooltip.Root>
+{/snippet}

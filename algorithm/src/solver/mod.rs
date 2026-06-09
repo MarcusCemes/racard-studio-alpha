@@ -139,11 +139,8 @@ impl Worker<'_> {
         let rng = &mut AppRng::try_from_rng(&mut SysRng).unwrap();
 
         let mut friday_solver = FridaySolver::new(&self.parameters.friday, &self.solver.context);
-
         let mut weekend_solver = WeekendSolver::new(&self.parameters.weekend, &self.solver.context);
-
         let mut weekday_solver = WeekdaySolver::new(&self.parameters.weekday, &self.solver.context);
-
         let mut storage = SolutionStorage::with_capacity(self.top_k as usize);
 
         loop {

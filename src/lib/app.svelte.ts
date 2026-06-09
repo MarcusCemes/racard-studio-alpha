@@ -10,7 +10,7 @@ import {
     N_WEEKDAYS,
     Role,
 } from "./defs.js";
-import { formatDayIdx, parseConflict } from "./misc.js";
+import { type ParsedConflict, iterParsedConflict } from "./misc.js";
 import type {
     BankHoliday,
     Conflict,
@@ -97,32 +97,22 @@ class AppState {
         }),
     );
 
-    // --- Derived: fitness ---
-    get fitness(): number {
+    get totalFitness(): number | null {
         return this.statistics?.fitness
             ? Object.values(this.statistics.fitness).reduce((a, b) => a + b, 0)
-            : 0;
+            : null;
     }
 
-    // --- Derived: holiday lookup map ---
-    holidayMap = $derived.by<Record<string, string>>(() => {
-        const map: Record<string, string> = {};
-        for (const h of this.bankHolidays) {
-            if (h.enabled) map[h.date] = h.name;
-        }
-        return map;
-    });
-
-    // --- Derived: conflict lookup by day ---
-    conflictMap = $derived.by<Record<number, string[]>>(() => {
-        const map: Record<number, string[]> = {};
+    conflictMap = $derived.by(() => {
+        const map: Map<number, ParsedConflict[]> = new Map();
 
         for (const conflict of this.conflicts) {
-            const parsed = parseConflict(conflict, formatDayIdx);
-
-            if (parsed.scope === "day") {
-                if (!map[parsed.scopeIndex]) map[parsed.scopeIndex] = [];
-                map[parsed.scopeIndex].push(parsed.description);
+            for (const parsedConflict of iterParsedConflict(conflict)) {
+                if (map.has(parsedConflict.dayIdx)) {
+                    map.get(parsedConflict.dayIdx)!.push(parsedConflict);
+                } else {
+                    map.set(parsedConflict.dayIdx, [parsedConflict]);
+                }
             }
         }
 
@@ -229,9 +219,10 @@ export class Selection {
 
 export class View {
     gridMode = $state(GridMode.Filled);
+    mode = $state(ViewMode.Calendar);
     showConflicts = $state(true);
     showHolidays = $state(true);
-    zoom = $state(ZoomLevel.Standard);
+    zoom = $state(ZoomLevel.Comfy);
 }
 
 let currentApp = $state(new AppState());
@@ -272,9 +263,14 @@ export enum GridMode {
     Bars = "bars",
 }
 
-export enum ZoomLevel {
-    Standard = "standard",
+export enum ViewMode {
+    Calendar = "standard",
     Weekly = "weekly",
+}
+
+export enum ZoomLevel {
+    Normal = "normal",
+    Comfy = "comfy",
 }
 
 function newStartDate(): string {

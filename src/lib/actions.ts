@@ -1,7 +1,7 @@
 import { app } from "$lib/app.svelte.js";
 
 import type { Role } from "./defs.js";
-import { getRole, setRole } from "./slot.js";
+import { getLead, getRole, getSupport, makeSlot, setRole } from "./slot.js";
 
 export function swapDays(a: number, b: number) {
     app.history.push(app.slots);
@@ -15,6 +15,12 @@ export function swapRoles(dayA: number, dayB: number, roleA: Role, roleB: Role) 
     app.history.push(app.slots);
 
     const slotA = app.slots[dayA];
+
+    if (dayA === dayB) {
+        app.slots[dayA] = makeSlot(getSupport(slotA), getLead(slotA));
+        return;
+    }
+
     const slotB = app.slots[dayB];
 
     const userA = getRole(slotA, roleA);

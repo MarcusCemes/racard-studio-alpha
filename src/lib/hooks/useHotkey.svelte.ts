@@ -5,19 +5,21 @@ export function useHotKey(
     callback: (event: KeyboardEvent) => void,
     allowModifier = false,
 ) {
-    const handler = (event: KeyboardEvent) => {
-        // @ts-ignore
-        if (event.target?.matches("input, textarea, select, [contenteditable]")) {
-            return;
-        }
+    $effect(() => {
+        const handler = (event: KeyboardEvent) => {
+            // @ts-ignore
+            if (event.target?.matches("input, textarea, select, [contenteditable]")) {
+                return;
+            }
 
-        if (event.key === key && (allowModifier || !isModifierKeyPressed(event))) {
-            callback(event);
-        }
-    };
+            if (event.key === key && (allowModifier || !isModifierKeyPressed(event))) {
+                callback(event);
+            }
+        };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    });
 }
 
 export function useHotKeys(
@@ -25,20 +27,22 @@ export function useHotKeys(
     callback: (event: KeyboardEvent) => void,
     allowModifier = false,
 ) {
-    const handler = (event: KeyboardEvent) => {
-        // @ts-ignore
-        if (event.target?.matches("input, textarea, select, [contenteditable]")) {
-            return;
-        }
+    $effect(() => {
+        const handler = (event: KeyboardEvent) => {
+            // @ts-ignore
+            if (event.target?.matches("input, textarea, select, [contenteditable]")) {
+                return;
+            }
 
-        if (
-            (keys?.includes(event.key) ?? true) &&
-            (allowModifier || !isModifierKeyPressed(event))
-        ) {
-            callback(event);
-        }
-    };
+            if (
+                (keys?.includes(event.key) ?? true) &&
+                (allowModifier || !isModifierKeyPressed(event))
+            ) {
+                callback(event);
+            }
+        };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    });
 }

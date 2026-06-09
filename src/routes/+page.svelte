@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { ZoomLevel, view } from "$lib/app.svelte";
+    import { ViewMode, view } from "$lib/app.svelte";
     import InspectorPanel from "$lib/components/app/InspectorPanel.svelte";
     import OperationProgress from "$lib/components/app/OperationProgress.svelte";
     import RosterPanel from "$lib/components/app/RosterPanel.svelte";
@@ -15,7 +15,7 @@
     <div class="flex flex-1 min-h-0 overflow-hidden">
         <RosterPanel />
 
-        {#if view.zoom === ZoomLevel.Standard}
+        {#if view.mode === ViewMode.Calendar}
             <ScheduleGrid />
         {:else}
             <WeeklyGrid />

@@ -1,63 +1,82 @@
-import { N_WEEKDAYS, WEEKDAYS } from "./defs.js";
+import { N_WEEKDAYS } from "./defs.js";
 import type { Conflict } from "./schemas.js";
 
 export interface ParsedConflict {
-    type: "ConsecutiveDay" | "Holiday" | "Role" | "WorkCount";
+    dayIdx: number;
+    kind: ConflictKind;
+    otherDayIdx?: number;
     personIdx: number;
-    description: string;
-    scope: "day" | "week";
-    scopeIndex: number;
 }
 
-export function parseConflict(
-    conflict: Conflict,
-    formatDay: (dayIdx: number) => string,
-): ParsedConflict {
+export enum ConflictKind {
+    ConsecutiveDay,
+    Holiday,
+    Role,
+    WorkCount,
+}
+
+export function* iterParsedConflict(conflict: Conflict): Generator<ParsedConflict> {
     if ("ConsecutiveDay" in conflict) {
-        const [person, dayA, dayB] = conflict.ConsecutiveDay;
-        return {
-            type: "ConsecutiveDay",
-            personIdx: person,
-            description: `${formatDay(dayA)} → ${formatDay(dayB)}`,
-            scope: "day",
-            scopeIndex: dayA,
-        };
+        const [personIdx, dayIdx] = conflict.ConsecutiveDay;
+
+        for (let i = 0; i < 2; ++i) {
+            yield {
+                dayIdx: dayIdx + i,
+                kind: ConflictKind.ConsecutiveDay,
+                otherDayIdx: dayIdx + (i === 0 ? 1 : -1),
+                personIdx,
+            };
+        }
     } else if ("Holiday" in conflict) {
-        const [person, day] = conflict.Holiday;
-        return {
-            type: "Holiday",
-            personIdx: person,
-            description: formatDay(day),
-            scope: "week",
-            scopeIndex: Math.floor(day / N_WEEKDAYS),
+        const [personIdx, dayIdx] = conflict.Holiday;
+
+        yield {
+            dayIdx,
+            kind: ConflictKind.Holiday,
+            personIdx,
         };
     } else if ("Role" in conflict) {
-        const [person, day] = conflict.Role;
-        return {
-            type: "Role",
-            personIdx: person,
-            description: formatDay(day),
-            scope: "day",
-            scopeIndex: day,
+        const [personIdx, dayIdx] = conflict.Role;
+
+        yield {
+            dayIdx,
+            kind: ConflictKind.Role,
+            personIdx,
         };
     } else if ("WorkCount" in conflict) {
-        const [person, week] = conflict.WorkCount;
-        return {
-            type: "WorkCount",
-            personIdx: person,
-            description: `Week ${week + 1}`,
-            scope: "week",
-            scopeIndex: week,
-        };
-    }
+        const [personIdx, weekIdx] = conflict.WorkCount;
 
-    throw new Error("Unknown conflict type");
+        for (let i = 0; i < 4; ++i) {
+            yield {
+                dayIdx: weekIdx * N_WEEKDAYS + i,
+                kind: ConflictKind.WorkCount,
+                personIdx,
+            };
+        }
+    } else {
+        throw new Error(`Unknown conflict type: ${JSON.stringify(conflict)}`);
+    }
 }
 
-export function formatDayIdx(dayIdx: number): string {
-    const week = Math.floor(dayIdx / N_WEEKDAYS) + 1;
-    const day = WEEKDAYS[dayIdx % N_WEEKDAYS];
-    return `${day} Wk ${week}`;
+function conflictMessage(conflict: ParsedConflict): string {
+    const person =
+        conflict.personIdx !== undefined ? app.people[conflict.personIdx].name : undefined;
+    const other =
+        conflict.otherDayIdx && format(addDays(app.startDate, conflict.otherDayIdx), "EEEE");
+
+    switch (conflict.kind) {
+        case ConflictKind.ConsecutiveDay:
+            return `Consecutive workday with ${other}`;
+
+        case ConflictKind.Holiday:
+            return `${person} is on holiday`;
+
+        case ConflictKind.Role:
+            return `${person} works both roles`;
+
+        case ConflictKind.WorkCount:
+            return `${person} works too many days`;
+    }
 }
 
 export function plural(n: number, singular: string, plural?: string): string {
