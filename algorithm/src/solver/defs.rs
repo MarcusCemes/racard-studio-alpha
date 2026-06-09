@@ -33,44 +33,6 @@ pub struct SolverParameters {
     pub weekday: WeekdayParameters,
 }
 
-impl SolverParameters {
-    pub const FAST: Self = Self {
-        weekend: WeekendParameters {
-            number_permutations: 50,
-            max_resolve_attempts: 50,
-            hill_climb_iterations: 10_000,
-        },
-
-        friday: WeekdayParameters {
-            number_permutations: 100,
-            max_resolve_attempts: 500,
-        },
-
-        weekday: WeekdayParameters {
-            number_permutations: 50,
-            max_resolve_attempts: 25,
-        },
-    };
-
-    pub const SLOW: Self = Self {
-        weekend: WeekendParameters {
-            number_permutations: 100,
-            max_resolve_attempts: 50,
-            hill_climb_iterations: 50_000,
-        },
-
-        friday: WeekdayParameters {
-            number_permutations: 10_000,
-            max_resolve_attempts: 100,
-        },
-
-        weekday: WeekdayParameters {
-            number_permutations: 100,
-            max_resolve_attempts: 10,
-        },
-    };
-}
-
 /* -- DraftSchedule -- */
 
 #[derive(Copy, Clone)]

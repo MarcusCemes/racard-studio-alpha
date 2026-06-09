@@ -253,6 +253,7 @@ pub async fn refine(
 
         if parameters.polish {
             refiner.polish(&mut solution);
+            refiner.cleanup_consecutive(&mut solution);
             fitness = refiner.evaluator.evaluate(&solution).total();
         };
 

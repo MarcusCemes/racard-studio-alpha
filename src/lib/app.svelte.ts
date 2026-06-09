@@ -53,24 +53,24 @@ class AppState {
     });
 
     refinerParams = $state<RefinementParameters>({
-        cooling_rate: 0.995,
-        initial_temperature: 1,
-        num_iterations: 10000,
+        cooling_rate: 0.9995,
+        initial_temperature: 20,
+        num_iterations: 50000,
         polish: true,
-        searches: 1000,
+        searches: 100,
     });
 
     weights = $state<FitnessWeights>({
         annual_hours: 5,
-        consecutive_days: 20,
+        blank_weeks: 100,
+        consecutive_days: 8,
         consecutive_weekends: 10,
-        weekend_alternation: 1,
-        weekend_regularity: 1,
-        weekly_hours: 1,
-        blank_weeks: 50,
+        weekend_alternation: 4,
+        weekend_regularity: 2,
+        weekly_hours: 2,
     });
 
-    topK = $state(5);
+    topK = $state(20);
 
     // --- Interaction states ---
     activeMode = $state<ActiveMode>("select");

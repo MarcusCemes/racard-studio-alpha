@@ -29,9 +29,9 @@ export function useDev() {
 
             app.loadSlots(solution as Slots);
 
-            app.solverParams = solverParameters;
-            app.refinerParams = refinementParameters;
-            app.topK = 5;
+            // app.solverParams = solverParameters;
+            // app.refinerParams = refinementParameters;
+            // app.topK = 5;
 
             app.conflicts = sampleConflicts();
             app.statistics = sampleStatistics();

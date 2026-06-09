@@ -87,12 +87,13 @@ impl Refiner<'_> {
     /// Perform a greedy pass to minimize annual hour discrepancies.
     ///
     /// This method identifies the most overworked and underworked people and attempts
-    /// to swap their shifts, provided it reduces the total absolute drift and respects
+    /// to swap their shifts, provided it reduces the overall fitness score and respects
     /// all hard constraints.
     pub fn polish(&self, solution: &mut Solution) {
         let Context { n_people, .. } = self.context;
 
         let mut deltas = self.evaluator.calculate_annual_deltas(solution);
+        let mut best_total = self.evaluator.evaluate(solution).total();
         let mut improved = true;
 
         while improved {
@@ -135,6 +136,7 @@ impl Refiner<'_> {
                                 // Attempt a replacement (Move shift from over_p to under_p)
                                 let perturbation =
                                     Perturbation::ReplacePerson(day, role, Some(under_p));
+
                                 let patch = perturbation.apply(solution);
 
                                 if PerturbationGenerator::new(
@@ -144,15 +146,13 @@ impl Refiner<'_> {
                                 )
                                 .is_valid(perturbation)
                                 {
-                                    let new_deltas =
-                                        self.evaluator.calculate_annual_deltas(solution);
-                                    let old_abs_sum = deltas[over_p].abs() + deltas[under_p].abs();
-                                    let new_abs_sum =
-                                        new_deltas[over_p].abs() + new_deltas[under_p].abs();
+                                    let new_total = self.evaluator.evaluate(solution).total();
 
-                                    if new_abs_sum < old_abs_sum - 0.1 {
-                                        deltas = new_deltas;
+                                    if new_total <= best_total {
+                                        best_total = new_total;
+                                        deltas = self.evaluator.calculate_annual_deltas(solution);
                                         improved = true;
+
                                         break 'outer;
                                     }
                                 }
@@ -172,20 +172,98 @@ impl Refiner<'_> {
                             )
                             .is_valid(perturbation)
                             {
-                                let new_deltas = self.evaluator.calculate_annual_deltas(solution);
-                                let old_abs_sum = deltas[over_p].abs() + deltas[under_p].abs();
-                                let new_abs_sum =
-                                    new_deltas[over_p].abs() + new_deltas[under_p].abs();
+                                let new_total = self.evaluator.evaluate(solution).total();
 
-                                if new_abs_sum < old_abs_sum - 0.1 {
-                                    deltas = new_deltas;
+                                if new_total <= best_total {
+                                    best_total = new_total;
+                                    deltas = self.evaluator.calculate_annual_deltas(solution);
                                     improved = true;
+
                                     break 'outer;
                                 }
                             }
                             patch.revert(solution);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Greedy pass that breaks consecutive-day overlaps (Mon–Fri).
+    ///
+    /// Scans for any person working two consecutive days and attempts to
+    /// reassign one of the slots to someone who doesn't work the adjacent
+    /// day. Uses full fitness evaluation to ensure no regression.
+    pub fn cleanup_consecutive(&self, solution: &mut Solution) {
+        let Context { n_people, .. } = self.context;
+
+        let mut best_total = self.evaluator.evaluate(solution).total();
+        let mut improved = true;
+
+        while improved {
+            improved = false;
+
+            for day in DayIdx::iter() {
+                // Skip Saturday: Sat→Sun is structural (Sunday = Saturday.swapped())
+                if day.weekday() == Sat {
+                    continue;
+                }
+
+                let Some(next_day) = day.next() else {
+                    continue;
+                };
+
+                // Fast check: do these two days overlap at all?
+                if !solution[day].overlaps(solution[next_day]) {
+                    continue;
+                }
+
+                for role in Role::iter() {
+                    let Some(person) = solution[day].get(role) else {
+                        continue;
+                    };
+
+                    // Only care if this person also works the next day
+                    if !solution[next_day].has(person) {
+                        continue;
+                    }
+
+                    // Try replacing with someone who works neither day
+                    for other in PersonIdx::iter(n_people) {
+                        if other == person {
+                            continue;
+                        }
+
+                        if solution[day].has(other) || solution[next_day].has(other) {
+                            continue;
+                        }
+
+                        let perturbation = Perturbation::ReplacePerson(day, role, Some(other));
+                        let patch = perturbation.apply(solution);
+
+                        if PerturbationGenerator::new(solution, &self.context.holidays, n_people)
+                            .is_valid(perturbation)
+                        {
+                            let new_total = self.evaluator.evaluate(solution).total();
+
+                            if new_total <= best_total {
+                                best_total = new_total;
+                                improved = true;
+                                break;
+                            }
+                        }
+
+                        patch.revert(solution);
+                    }
+
+                    if improved {
+                        break;
+                    }
+                }
+
+                if improved {
+                    break;
                 }
             }
         }
@@ -404,24 +482,6 @@ pub struct RefinementParameters {
     pub num_iterations: u64,
     pub polish: bool,
     pub searches: u64,
-}
-
-impl RefinementParameters {
-    pub const FAST: Self = Self {
-        cooling_rate: 0.995,
-        initial_temperature: 5.,
-        num_iterations: 10_000,
-        polish: true,
-        searches: 100,
-    };
-
-    pub const SLOW: Self = Self {
-        cooling_rate: 0.9995,
-        initial_temperature: 20.,
-        num_iterations: 20_000,
-        polish: true,
-        searches: 200,
-    };
 }
 
 /* -- State -- */
@@ -972,5 +1032,88 @@ mod tests {
         // Swapping Friday[0] and Friday[5] puts A on Friday[5],
         // and A is already on Saturday[5] — violates the Friday-weekend rule.
         assert!(!valid);
+    }
+
+    /// Verify cleanup_consecutive eliminates a deliberate Mon-Tue overlap
+    /// without worsening other fitness components.
+    #[test]
+    fn cleanup_consecutive_breaks_overlap() {
+        use crate::{ProblemInput, ProblemOverrides, utils::sample_people};
+        use chrono::NaiveDate;
+
+        let start_date = NaiveDate::from_ymd_opt(2024, 8, 19).unwrap();
+        let weekday_hours = [[14.5, 7.5]; 7];
+
+        let problem = ProblemInput::try_new(
+            start_date,
+            sample_people().to_vec(),
+            ProblemOverrides::default(),
+            weekday_hours,
+            3,
+        )
+        .unwrap();
+
+        let weights = Weights::STANDARD;
+        let refiner = Refiner::new(&problem, &weights);
+
+        // Build a schedule with a deliberate Mon-Tue overlap
+        let mut slots = [Slot::default(); N_DAYS];
+        let p0 = PersonIdx::new(0).unwrap();
+        let p1 = PersonIdx::new(1).unwrap();
+        let p2 = PersonIdx::new(2).unwrap();
+
+        let week0 = WeekIdx::try_new(0).unwrap();
+        let mon0 = week0.weekday(Mon);
+        let tue0 = week0.weekday(Tue);
+
+        // Person 0 works Monday Lead AND Tuesday Support → consecutive overlap
+        slots[mon0] = Slot::new(Some(p0), Some(p1));
+        slots[tue0] = Slot::new(Some(p2), Some(p0));
+
+        // Fill rest with a valid baseline (no overlaps elsewhere)
+        for week in WeekIdx::iter() {
+            if week == week0 {
+                continue;
+            }
+            let mon = week.weekday(Mon);
+            let tue = week.weekday(Tue);
+            let wed = week.weekday(Wed);
+            let thu = week.weekday(Thu);
+            let fri = week.weekday(Fri);
+            let sat = week.weekday(Sat);
+
+            slots[mon] = Slot::new(Some(p0), Some(p1));
+            slots[tue] = Slot::new(Some(p1), Some(p0));
+            slots[wed] = Slot::new(Some(p0), Some(p2));
+            slots[thu] = Slot::new(Some(p2), Some(p0));
+            slots[fri] = Slot::new(Some(p1), Some(p2));
+            slots[sat] = Slot::new(Some(p0), Some(p1));
+
+            // Sunday auto-derived via swapped() in the evaluator
+            let sun = week.weekday(Sun);
+            slots[sun] = slots[sat].swapped();
+        }
+
+        let mut solution = Solution::from_slot_array(&slots);
+
+        let fitness_before = refiner.evaluator.evaluate(&solution).total();
+        let cons_before = refiner.evaluator.evaluate(&solution).consecutive_days;
+
+        refiner.cleanup_consecutive(&mut solution);
+
+        let fitness_after = refiner.evaluator.evaluate(&solution).total();
+        let cons_after = refiner.evaluator.evaluate(&solution).consecutive_days;
+
+        // Fitness should not regress
+        assert!(
+            fitness_after <= fitness_before,
+            "cleanup_consecutive worsened fitness: {fitness_before:.2} → {fitness_after:.2}"
+        );
+
+        // Consecutive days should decrease (the Mon-Tue overlap was removed)
+        assert!(
+            cons_after < cons_before,
+            "cleanup_consecutive did not reduce consecutive_days: {cons_before:.2} → {cons_after:.2}"
+        );
     }
 }

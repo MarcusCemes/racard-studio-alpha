@@ -191,8 +191,11 @@ impl Orchestrator {
 
                                 if refiner_params.polish {
                                     refiner.polish(&mut solution);
+                                    refiner.cleanup_consecutive(&mut solution);
+
                                     let polished_fitness =
                                         refiner.evaluator.evaluate(&solution).total();
+
                                     progress.report_best(polished_fitness);
 
                                     if local_best

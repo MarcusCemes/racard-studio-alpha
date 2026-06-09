@@ -87,7 +87,7 @@ impl ScheduleView for SlotArrayRef<'_> {
     }
 
     fn iter_slots_weekday(&self, weekday: Weekday) -> impl Iterator<Item = Slot> + '_ {
-        let offset = weekday as usize * N_WEEKDAYS;
+        let offset = weekday.num_days_from_monday() as usize;
         self.0.iter().skip(offset).step_by(N_WEEKDAYS).copied()
     }
 }
@@ -574,23 +574,23 @@ impl AsRef<[[f32; Role::COUNT]; N_DAYS]> for HourAssignments {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Weights {
     pub annual_hours: f32,
+    pub blank_weeks: f32,
     pub consecutive_days: f32,
     pub consecutive_weekends: f32,
     pub weekend_alternation: f32,
     pub weekend_regularity: f32,
     pub weekly_hours: f32,
-    pub blank_weeks: f32,
 }
 
 impl Weights {
     pub const STANDARD: Self = Self {
         annual_hours: 5.,
-        consecutive_days: 20.,
+        blank_weeks: 100.,
+        consecutive_days: 5.,
         consecutive_weekends: 10.,
-        weekend_alternation: 1.,
-        weekend_regularity: 1.,
-        weekly_hours: 1.,
-        blank_weeks: 50.,
+        weekend_alternation: 4.,
+        weekend_regularity: 2.,
+        weekly_hours: 2.,
     };
 }
 
