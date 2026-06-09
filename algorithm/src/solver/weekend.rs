@@ -10,7 +10,7 @@ use crate::{
     fitness::ScheduleEvaluator,
     solver::{
         context::{Context, PlacementContext, SingleAssignment},
-        defs::PhaseParameters,
+        defs::WeekendParameters,
         types::WeeklyRoleMask,
     },
     types::{PersonIdx, Role, Slot, WeekIdx},
@@ -20,7 +20,7 @@ use crate::{
 pub struct WeekendSolver<'a> {
     context: &'a Context,
     distribution: Distribution,
-    parameters: &'a PhaseParameters,
+    parameters: &'a WeekendParameters,
     state: WeekendState,
 }
 
@@ -43,7 +43,7 @@ impl Default for WeekendState {
 }
 
 impl WeekendSolver<'_> {
-    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> WeekendSolver<'a> {
+    pub fn new<'a>(parameters: &'a WeekendParameters, context: &'a Context) -> WeekendSolver<'a> {
         WeekendSolver {
             context,
             distribution: WeekendRoleDistribution(context).proportionate_to_rate(),
@@ -92,7 +92,7 @@ impl WeekendSolver<'_> {
 
         let mut current_score = calc_score(&self.state.assignment);
 
-        for _ in 0..10_000 {
+        for _ in 0..self.parameters.hill_climb_iterations {
             let week_a: WeekIdx = rng.random();
             let week_b: WeekIdx = rng.random();
 
@@ -374,6 +374,8 @@ impl WeekendRoleDistribution<'_> {
 mod tests {
     use chrono::NaiveDate;
 
+    use crate::solver::defs::WeekdayParameters;
+
     use super::*;
 
     fn make_test_context() -> Context {
@@ -430,7 +432,7 @@ mod tests {
     fn test_variable_people_count() {
         use crate::{
             ExecutionController, ScheduleValidator, Solver, SolverParameters, SolverProgress,
-            solver::defs::PhaseParameters,
+            solver::defs::WeekendParameters,
         };
 
         for n_people in [8_usize, 15] {
@@ -458,15 +460,16 @@ mod tests {
 
             // Minimal parameters for smoke test: one permutation per stage
             let params = SolverParameters {
-                weekend: PhaseParameters {
+                weekend: WeekendParameters {
+                    number_permutations: 1,
+                    max_resolve_attempts: 50,
+                    hill_climb_iterations: 1_000,
+                },
+                friday: WeekdayParameters {
                     number_permutations: 1,
                     max_resolve_attempts: 50,
                 },
-                friday: PhaseParameters {
-                    number_permutations: 1,
-                    max_resolve_attempts: 50,
-                },
-                weekday: PhaseParameters {
+                weekday: WeekdayParameters {
                     number_permutations: 1,
                     max_resolve_attempts: 10,
                 },

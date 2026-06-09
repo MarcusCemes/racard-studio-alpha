@@ -22,7 +22,7 @@ use crate::{
         controller::{ExecutionController, InterruptRequest},
         solution_storage::SolutionStorage,
     },
-    types::{Solution, Weights},
+    types::{Slot, Solution, WeekIdx, Weights},
 };
 
 pub mod context;
@@ -70,6 +70,61 @@ impl Solver<'_> {
     ) -> Result<SolverSolution, SolverError> {
         let mut best = self.execute_top_k(1, parameters, threads, controller, progress)?;
         best.pop().ok_or(SolverError::NoSolutionFound)
+    }
+
+    /// Run only the weekend solver, leaving Fridays and weekdays blank (Slot::NULL).
+    ///
+    /// Fitness is computed from weekend regularity and alternation only.
+    /// This is useful for finding a very flat, regular weekend distribution
+    /// without the constraints imposed by Friday/weekday placement.
+    pub fn execute_weekends(
+        &mut self,
+        parameters: SolverParameters,
+        threads: Option<u16>,
+        controller: &ExecutionController,
+        progress: &SolverProgress,
+    ) -> Result<SolverSolution, SolverError> {
+        let threads = threads.unwrap_or(num_cpus::get() as u16);
+        let extra_threads = threads.saturating_sub(1) as usize;
+
+        let root_counter = AtomicU64::new(parameters.weekend.number_permutations);
+
+        let worker = Worker {
+            top_k: 1,
+            parameters: &parameters,
+            progress,
+            controller,
+            counter: &root_counter,
+            solver: self,
+        };
+
+        let mut storage = SolutionStorage::with_capacity(1);
+
+        thread::scope(|scope| -> Result<(), SolverError> {
+            let extra_workers = (0..extra_threads)
+                .map(|_| scope.spawn(|| worker.spin_weekends_only()))
+                .collect::<Vec<_>>();
+
+            let local = worker.spin_weekends_only()?;
+            storage.merge(&local);
+
+            for handle in extra_workers {
+                let result = handle.join().expect("thread panicked")?;
+                storage.merge(&result);
+            }
+
+            Ok(())
+        })?;
+
+        storage
+            .read()
+            .next()
+            .map(|(fitness, slots)| SolverSolution {
+                fitness,
+                progress: progress.clone(),
+                solution: Solution::from_slot_array(slots),
+            })
+            .ok_or(SolverError::NoSolutionFound)
     }
 
     pub fn execute_top_k(
@@ -188,9 +243,65 @@ impl Worker<'_> {
                     };
 
                     let fitness = self.solver.evaluator.evaluate(&draft).total();
-                    storage.add(fitness, draft);
+                    storage.add_draft(fitness, draft);
                 }
             }
+        }
+
+        Ok(storage)
+    }
+
+    fn spin_weekends_only(&self) -> Result<SolutionStorage, SolverError> {
+        let rng = &mut AppRng::try_from_rng(&mut SysRng).unwrap();
+
+        let mut weekend_solver = WeekendSolver::new(&self.parameters.weekend, &self.solver.context);
+        let weights = self.solver.evaluator.weights();
+        let n_people = self.solver.context.n_people;
+
+        let mut storage = SolutionStorage::with_capacity(self.top_k as usize);
+
+        loop {
+            let current = self.counter.load(Ordering::Relaxed);
+
+            if current == 0 {
+                break;
+            }
+
+            if self
+                .counter
+                .compare_exchange(current, current - 1, Ordering::Relaxed, Ordering::Relaxed)
+                .is_err()
+            {
+                continue;
+            }
+
+            self.controller.assert()?;
+
+            let Some(saturdays) =
+                weekend_solver.generate(weights, &self.progress[SolverStage::Weekend], rng)
+            else {
+                continue;
+            };
+
+            // Compute weekend-only fitness (regularity + alternation)
+            let (spacing, alt) =
+                ScheduleEvaluator::evaluate_weekend_metrics(saturdays.iter().copied(), n_people);
+
+            let fitness = spacing * weights.weekend_regularity + alt * weights.weekend_alternation;
+
+            // Build full slot array: weekends filled, everything else Slot::NULL
+            let mut slots = [Slot::NULL; N_DAYS];
+
+            for week in WeekIdx::iter() {
+                let saturday_idx = (week.get() as usize) * N_WEEKDAYS + 5;
+                let sunday_idx = saturday_idx + 1;
+
+                // SAFETY: saturday_idx and sunday_idx are always in bounds (max week 47 → idx 335)
+                slots[saturday_idx] = saturdays[week];
+                slots[sunday_idx] = saturdays[week].swapped();
+            }
+
+            storage.add_slots(fitness, slots.iter().copied());
         }
 
         Ok(storage)

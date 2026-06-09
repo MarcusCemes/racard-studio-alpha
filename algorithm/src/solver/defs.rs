@@ -14,48 +14,57 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PhaseParameters {
+pub struct WeekendParameters {
+    pub number_permutations: u64,
+    pub max_resolve_attempts: u64,
+    pub hill_climb_iterations: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct WeekdayParameters {
     pub number_permutations: u64,
     pub max_resolve_attempts: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SolverParameters {
-    pub weekend: PhaseParameters,
-    pub friday: PhaseParameters,
-    pub weekday: PhaseParameters,
+    pub weekend: WeekendParameters,
+    pub friday: WeekdayParameters,
+    pub weekday: WeekdayParameters,
 }
 
 impl SolverParameters {
     pub const FAST: Self = Self {
-        weekend: PhaseParameters {
+        weekend: WeekendParameters {
             number_permutations: 50,
             max_resolve_attempts: 50,
+            hill_climb_iterations: 10_000,
         },
 
-        friday: PhaseParameters {
+        friday: WeekdayParameters {
             number_permutations: 100,
             max_resolve_attempts: 500,
         },
 
-        weekday: PhaseParameters {
+        weekday: WeekdayParameters {
             number_permutations: 50,
             max_resolve_attempts: 25,
         },
     };
 
     pub const SLOW: Self = Self {
-        weekend: PhaseParameters {
+        weekend: WeekendParameters {
             number_permutations: 100,
             max_resolve_attempts: 50,
+            hill_climb_iterations: 50_000,
         },
 
-        friday: PhaseParameters {
+        friday: WeekdayParameters {
             number_permutations: 10_000,
             max_resolve_attempts: 100,
         },
 
-        weekday: PhaseParameters {
+        weekday: WeekdayParameters {
             number_permutations: 100,
             max_resolve_attempts: 10,
         },

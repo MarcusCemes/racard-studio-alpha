@@ -96,10 +96,11 @@ struct HourAssignments(Box<[[f32; 2]; N_DAYS]>);
     ```
 4. **Fill slots** using distribution counts, checking holiday masks
 5. **Resolve conflicts** (swaps) with max attempts
-6. **Mini Hill-Climb** (10k iterations):
+6. **Mini Hill-Climb** (configurable via `hill_climb_iterations`, default 10k):
     - Randomly pick two weeks and a role
     - Swap assignments if it improves combined `weekend_regularity` + `weekend_alternation` score
     - Accept equal scores (walk across plateaus)
+    - Higher values produce flatter, more regular distributions at the cost of runtime
 
 **Key**: Sunday is ALWAYS `saturday.swapped()` — never directly assigned.
 
@@ -125,7 +126,37 @@ struct HourAssignments(Box<[[f32; 2]; N_DAYS]>);
 - Respect "max 1 weekday shift if working weekend" constraint
 - Generate valid permutations
 
-### 3.4 Parallel Execution
+### 3.4 Solver Parameters
+
+Separate parameter types per phase — `WeekendParameters` includes the hill-climb iteration count; `WeekdayParameters` (used for both Friday and weekday phases) does not:
+
+```rust
+pub struct WeekendParameters {
+    pub number_permutations: u64,
+    pub max_resolve_attempts: u64,
+    pub hill_climb_iterations: u64,
+}
+
+pub struct WeekdayParameters {
+    pub number_permutations: u64,
+    pub max_resolve_attempts: u64,
+}
+
+pub struct SolverParameters {
+    pub weekend: WeekendParameters,
+    pub friday: WeekdayParameters,
+    pub weekday: WeekdayParameters,
+}
+```
+
+Preset profiles:
+
+| Profile | Weekend perms | Hill climb | Friday perms | Weekday perms |
+| ------- | ------------- | ---------- | ------------ | ------------- |
+| FAST    | 50            | 10,000     | 100          | 50            |
+| SLOW    | 100           | 50,000     | 10,000       | 100           |
+
+### 3.5 Parallel Execution
 
 ```rust
 // Solver::execute() spawns threads
@@ -138,6 +169,16 @@ let threads = num_cpus::get();
 ```
 
 Uses `AtomicU64` counter for work distribution across threads.
+
+### 3.6 Weekends-Only Mode
+
+`Solver::execute_weekends()` runs only the weekend solver, leaving Fridays and weekdays as `Slot::NULL`. This is useful for finding a flat, regular weekend distribution without the constraints of Friday/weekday placement.
+
+- Uses `spin_weekends_only()` which skips Friday/Weekday solvers entirely
+- Fitness = `weekend_regularity × weight` + `weekend_alternation × weight` only
+- Returns a full `Solution` with weekends filled, all other slots zeroed
+- Exposed as a separate Tauri command (`weekend_solve`) and UI trigger ("Solve (weekends)")
+- Performance is orders of magnitude faster than the full solver (no multiplicative nesting), allowing much higher `hill_climb_iterations` values
 
 ---
 

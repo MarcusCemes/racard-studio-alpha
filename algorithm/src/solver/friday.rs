@@ -5,7 +5,7 @@ use crate::{
     defs::N_WEEKS,
     solver::{
         context::{Context, PlacementContext, SingleAssignment},
-        defs::PhaseParameters,
+        defs::WeekdayParameters,
         types::WeeklyRoleMask,
     },
     types::{PersonIdx, Slot, WeekIdx},
@@ -14,7 +14,7 @@ use crate::{
 
 pub struct FridaySolver<'a> {
     context: &'a Context,
-    parameters: &'a PhaseParameters,
+    parameters: &'a WeekdayParameters,
     state: FridayState,
 }
 
@@ -26,7 +26,7 @@ struct FridayState {
 }
 
 impl FridaySolver<'_> {
-    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> FridaySolver<'a> {
+    pub fn new<'a>(parameters: &'a WeekdayParameters, context: &'a Context) -> FridaySolver<'a> {
         FridaySolver {
             context,
             parameters,

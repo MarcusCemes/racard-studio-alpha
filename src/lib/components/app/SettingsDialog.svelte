@@ -726,7 +726,12 @@
                                                 />
                                             </Field.Field>
 
-                                            <Field.Field orientation="horizontal" class="px-6 py-4">
+                                            <Field.Field
+                                                orientation="horizontal"
+                                                class={phase.key === "weekend"
+                                                    ? "border-b px-6 py-4"
+                                                    : "px-6 py-4"}
+                                            >
                                                 <Field.Content>
                                                     <Field.Label>Resolve attempts</Field.Label>
                                                     <Field.Description>
@@ -744,6 +749,32 @@
                                                     min="1"
                                                 />
                                             </Field.Field>
+
+                                            {#if phase.key === "weekend"}
+                                                <Field.Field
+                                                    orientation="horizontal"
+                                                    class="px-6 py-4"
+                                                >
+                                                    <Field.Content>
+                                                        <Field.Label
+                                                            >Hill climb iterations</Field.Label
+                                                        >
+                                                        <Field.Description>
+                                                            Mini-refiner steps to optimise weekend
+                                                            distribution.
+                                                        </Field.Description>
+                                                    </Field.Content>
+                                                    <Input
+                                                        type="number"
+                                                        bind:value={
+                                                            app.solverParams[phase.key]
+                                                                .hill_climb_iterations
+                                                        }
+                                                        class="w-24 font-mono"
+                                                        min="0"
+                                                    />
+                                                </Field.Field>
+                                            {/if}
                                         </div>
                                     </Field.FieldSet>
                                 {/each}

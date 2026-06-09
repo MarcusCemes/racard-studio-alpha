@@ -16,7 +16,7 @@
     import { N_DAYS, N_WEEKDAYS, N_WEEKS, Role, WEEKDAYS } from "$lib/defs.js";
     import { useGridNavigation } from "$lib/hooks/useGridNavigation";
     import { useHotKey } from "$lib/hooks/useHotkey.svelte.js";
-    import { type ParsedConflict } from "$lib/misc.js";
+    import { type ParsedConflict, conflictMessage } from "$lib/misc.js";
     import { getLead, getSupport } from "$lib/slot.js";
 
     // Per-person palette: [bar, bg, text]
@@ -326,7 +326,9 @@
                         ]}
                     >
                         <!-- Day date -->
-                        <div class="flex mt-2 mb-1 px-2 text-[8px] text-neutral-500 font-medium">
+                        <div
+                            class="flex mt-2 mb-1 px-2 text-[8px] text-neutral-500 font-medium gap-1"
+                        >
                             <div class="flex-1">{formattedDate}</div>
 
                             {#if conflicts}
@@ -337,8 +339,7 @@
 
                             {#if bankHoliday}
                                 <Tooltip.Root>
-                                    <Tooltip.Trigger class="ml-2 bg-yellow-600 size-2"
-                                    ></Tooltip.Trigger>
+                                    <Tooltip.Trigger class="ml-2 bg-yellow-600 size-2" />
                                     <Tooltip.Content>{bankHoliday.name}</Tooltip.Content>
                                 </Tooltip.Root>
                             {/if}
@@ -410,7 +411,7 @@
 
 {#snippet conflictIndicator(conflict: ParsedConflict)}
     <Tooltip.Root>
-        <Tooltip.Trigger class="bg-red-500 size-2 rounded-full"></Tooltip.Trigger>
+        <Tooltip.Trigger class="bg-red-500 size-2 rounded-full" />
 
         <Tooltip.Content>
             {conflictMessage(conflict)}

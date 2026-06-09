@@ -43,7 +43,11 @@ class AppState {
 
     // --- Parameters ---
     solverParams = $state<SolverParameters>({
-        weekend: { number_permutations: 50, max_resolve_attempts: 50 },
+        weekend: {
+            number_permutations: 50,
+            max_resolve_attempts: 50,
+            hill_climb_iterations: 10_000,
+        },
         friday: { number_permutations: 1000, max_resolve_attempts: 50 },
         weekday: { number_permutations: 20, max_resolve_attempts: 50 },
     });

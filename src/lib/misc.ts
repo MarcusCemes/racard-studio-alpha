@@ -1,3 +1,6 @@
+import { addDays, format } from "date-fns";
+
+import { app } from "./app.svelte.js";
 import { N_WEEKDAYS } from "./defs.js";
 import type { Conflict } from "./schemas.js";
 
@@ -58,7 +61,7 @@ export function* iterParsedConflict(conflict: Conflict): Generator<ParsedConflic
     }
 }
 
-function conflictMessage(conflict: ParsedConflict): string {
+export function conflictMessage(conflict: ParsedConflict): string {
     const person =
         conflict.personIdx !== undefined ? app.people[conflict.personIdx].name : undefined;
     const other =

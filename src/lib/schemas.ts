@@ -82,17 +82,24 @@ export const scheduleSchema = z.object({
 
 /* === Parameters === */
 
-export type PhaseParameters = z.infer<typeof phaseParametersSchema>;
-export const phaseParametersSchema = z.object({
+export type WeekendParameters = z.infer<typeof weekendParametersSchema>;
+export const weekendParametersSchema = z.object({
+    number_permutations: z.number().int().min(1),
+    max_resolve_attempts: z.number().int().min(1),
+    hill_climb_iterations: z.number().int().min(0),
+});
+
+export type WeekdayParameters = z.infer<typeof weekdayParametersSchema>;
+export const weekdayParametersSchema = z.object({
     number_permutations: z.number().int().min(1),
     max_resolve_attempts: z.number().int().min(1),
 });
 
 export type SolverParameters = z.infer<typeof solverParametersSchema>;
 export const solverParametersSchema = z.object({
-    weekend: phaseParametersSchema,
-    friday: phaseParametersSchema,
-    weekday: phaseParametersSchema,
+    weekend: weekendParametersSchema,
+    friday: weekdayParametersSchema,
+    weekday: weekdayParametersSchema,
 });
 
 export type RefinementParameters = z.infer<typeof refinementParametersSchema>;

@@ -12,8 +12,14 @@
     } from "@lucide/svelte";
     import { toast } from "svelte-sonner";
 
-    import { apiInterrupt, apiOrchestrate, apiRefine, apiSolve } from "$lib/api.js";
-    import { type ActiveMode, app } from "$lib/app.svelte.js";
+    import {
+        apiInterrupt,
+        apiOrchestrate,
+        apiRefine,
+        apiSolve,
+        apiWeekendSolve,
+    } from "$lib/api.js";
+    import { type ActiveMode, app, selection } from "$lib/app.svelte.js";
     import AnalyticsDialog from "$lib/components/app/AnalyticsDialog.svelte";
     import SettingsDialog from "$lib/components/app/SettingsDialog.svelte";
     import ToolbarHistory from "$lib/components/app/ToolbarHistory.svelte";
@@ -38,7 +44,7 @@
             { id: "erase", label: "Erase", icon: Eraser, shortcut: "E" },
         ];
 
-    type RequestedOperation = "solve" | "refine" | "orchestrate";
+    type RequestedOperation = "solve" | "solveWeekends" | "refine" | "orchestrate";
 
     useHotKeys(null, handleHotkey);
 
@@ -75,6 +81,39 @@
         return 0;
     });
 
+    let confirmationDetails = $derived.by(() => {
+        switch (confirmOperation) {
+            case "solve":
+                return [
+                    "Run solver?",
+                    "The solver will replace the current schedule with a generated schedule.",
+                ];
+            case "solveWeekends":
+                return [
+                    "Run solver for weekends?",
+                    "The solver will replace the current schedule with a generated schedule for weekends.",
+                ];
+            case "refine":
+                return [
+                    "Run refiner?",
+                    "The refiner will replace the current schedule with the best refined result.",
+                ];
+            case "orchestrate":
+                return [
+                    "Run Auto?",
+                    "The orchestrator will run the solver and refiner to optimize the schedule.",
+                ];
+            default:
+                return [];
+        }
+    });
+
+    // Reset selection on active mode change
+    $effect(() => {
+        void app.activeMode;
+        selection.day = undefined;
+    });
+
     function requestOperation(operation: RequestedOperation) {
         confirmOperation = operation;
     }
@@ -87,6 +126,9 @@
         try {
             if (operation === "solve") {
                 const { solution } = await apiSolve(app, app.solverParams, app.weights);
+                app.loadSlots(solution);
+            } else if (operation === "solveWeekends") {
+                const { solution } = await apiWeekendSolve(app, app.solverParams, app.weights);
                 app.loadSlots(solution);
             } else if (operation === "refine") {
                 const [, solution] = await apiRefine(
@@ -116,24 +158,6 @@
         const operation = confirmOperation;
         confirmOperation = null;
         runOperation(operation);
-    }
-
-    function confirmTitle() {
-        if (confirmOperation === "solve") return "Run solver?";
-        if (confirmOperation === "refine") return "Run refiner?";
-        return "Run Auto?";
-    }
-
-    function confirmDescription() {
-        if (confirmOperation === "solve") {
-            return "The solver will replace the current schedule with a generated schedule.";
-        }
-
-        if (confirmOperation === "refine") {
-            return "The refiner will replace the current schedule with the best refined result.";
-        }
-
-        return "Auto will solve candidate schedules, refine the top results, and replace the current schedule with the best final result.";
     }
 
     function handleHotkey(event: KeyboardEvent) {
@@ -226,6 +250,11 @@
                         Solve
                     </DropdownMenu.Item>
 
+                    <DropdownMenu.Item onclick={() => requestOperation("solveWeekends")}>
+                        <Zap />
+                        Solve (weekends)
+                    </DropdownMenu.Item>
+
                     <DropdownMenu.Item onclick={() => requestOperation("refine")}>
                         <Zap />
                         Refine
@@ -240,10 +269,14 @@
 <AlertDialog.Root bind:open={() => confirmOperation !== null, () => (confirmOperation = null)}>
     <AlertDialog.Content>
         <AlertDialog.Header>
-            <AlertDialog.Title>{confirmTitle()}</AlertDialog.Title>
-            <AlertDialog.Description>
-                {confirmDescription()}
-            </AlertDialog.Description>
+            {#if confirmationDetails}
+                {@const [title, description] = confirmationDetails}
+
+                <AlertDialog.Title>{title}</AlertDialog.Title>
+                <AlertDialog.Description>
+                    {description}
+                </AlertDialog.Description>
+            {/if}
         </AlertDialog.Header>
         <AlertDialog.Footer>
             <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>

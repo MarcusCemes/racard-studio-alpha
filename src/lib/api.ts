@@ -79,6 +79,26 @@ export async function apiSolve(
     });
 }
 
+export async function apiWeekendSolve(
+    problem: {
+        startDate: string;
+        people: T.Person[];
+        weekdayHours: [number, number][];
+        bankHolidayDefaultHours: [number, number][];
+        bankHolidays: T.BankHoliday[];
+        customOverrides: T.CustomOverride[];
+        skipLastShifts: number;
+    },
+    solverParams: T.SolverParameters,
+    weights: T.FitnessWeights,
+) {
+    return await invoke<T.SolverSolution>("weekend_solve", {
+        problem: buildProblemConfig(problem),
+        solver_parameters: solverParams,
+        weights,
+    });
+}
+
 export async function apiRefine(
     problem: {
         startDate: string;

@@ -159,7 +159,11 @@ function sampleSave() {
         solverParameters: {
             friday: { number_permutations: 1000, max_resolve_attempts: 50 },
             weekday: { number_permutations: 20, max_resolve_attempts: 50 },
-            weekend: { number_permutations: 500, max_resolve_attempts: 50 },
+            weekend: {
+                number_permutations: 500,
+                max_resolve_attempts: 50,
+                hill_climb_iterations: 10_000,
+            },
         },
     };
 }

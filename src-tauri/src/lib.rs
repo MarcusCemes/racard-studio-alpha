@@ -22,6 +22,7 @@ pub fn run() {
             commands::solve,
             commands::statistics,
             commands::validate,
+            commands::weekend_solve,
             save::load_project,
             save::save_project,
         ])

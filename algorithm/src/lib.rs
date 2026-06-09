@@ -26,7 +26,7 @@ pub use {
     solver::{
         Solver, SolverError, SolverSolution,
         context::Context,
-        defs::{PhaseParameters, SolverParameters},
+        defs::{SolverParameters, WeekdayParameters, WeekendParameters},
         types::{SolverProgress, SolverStage},
     },
     statistics::{

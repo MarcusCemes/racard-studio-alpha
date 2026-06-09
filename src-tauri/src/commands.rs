@@ -26,6 +26,7 @@ const OPERATION_EVENT_KEY: &str = "operation-event";
 #[serde(rename_all = "snake_case")]
 pub enum OperationKind {
     Solve,
+    WeekendSolve,
     Refine,
     Orchestrate,
 }
@@ -112,6 +113,7 @@ pub async fn solve(
     async_runtime::spawn(solver_progress_reporter(
         app.clone(),
         Arc::downgrade(&progress),
+        OperationKind::Solve,
     ));
 
     let result = async_runtime::spawn_blocking(move || {
@@ -126,6 +128,69 @@ pub async fn solve(
         Err(_) => OperationStatus::Failed,
     };
     end_operation(&app, OperationKind::Solve, status).await;
+
+    Ok(result?)
+}
+
+/* === Weekend Solve === */
+
+#[derive(Debug, Error)]
+pub enum WeekendSolveError {
+    #[error("Another operation is already running")]
+    Busy,
+
+    #[error("Problem input error: {0}")]
+    ProblemInput(#[from] ProblemInputError),
+
+    #[error("Solver error: {0}")]
+    Solver(#[from] SolverError),
+}
+
+impl Serialize for WeekendSolveError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn weekend_solve(
+    app: AppHandle,
+    problem: ProblemConfig,
+    solver_parameters: SolverParameters,
+    weights: Weights,
+) -> Result<SolverSolution, WeekendSolveError> {
+    let problem = ProblemInput::try_from(problem)?;
+    let controller = begin_operation(&app, OperationKind::WeekendSolve)
+        .await
+        .map_err(|_| WeekendSolveError::Busy)?;
+    let progress = Arc::new(SolverProgress::default());
+
+    async_runtime::spawn(solver_progress_reporter(
+        app.clone(),
+        Arc::downgrade(&progress),
+        OperationKind::WeekendSolve,
+    ));
+
+    let result = async_runtime::spawn_blocking(move || {
+        Solver::new(&problem, &weights).execute_weekends(
+            solver_parameters,
+            None,
+            &controller,
+            &progress,
+        )
+    })
+    .await
+    .unwrap();
+
+    let status = match &result {
+        Ok(_) => OperationStatus::Finished,
+        Err(SolverError::Interrupted(_)) => OperationStatus::Interrupted,
+        Err(_) => OperationStatus::Failed,
+    };
+    end_operation(&app, OperationKind::WeekendSolve, status).await;
 
     Ok(result?)
 }
@@ -329,7 +394,11 @@ fn emit_operation_event(
 
 /* === Progress reporters === */
 
-async fn solver_progress_reporter(app: AppHandle, progress: Weak<SolverProgress>) {
+async fn solver_progress_reporter(
+    app: AppHandle,
+    progress: Weak<SolverProgress>,
+    kind: OperationKind,
+) {
     let mut timer = interval(REPORT_PERIOD);
 
     loop {
@@ -341,7 +410,7 @@ async fn solver_progress_reporter(app: AppHandle, progress: Weak<SolverProgress>
 
         emit_operation_event(
             &app,
-            OperationKind::Solve,
+            kind,
             OperationStatus::Running,
             Some(OperationPhase::Solving),
             OperationProgress {

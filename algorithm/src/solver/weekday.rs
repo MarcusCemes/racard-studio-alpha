@@ -11,7 +11,7 @@ use crate::{
     defs::MAX_PEOPLE,
     solver::{
         context::{Context, ContextPerson, MultiAssignment, SingleAssignment},
-        defs::PhaseParameters,
+        defs::WeekdayParameters,
         types::{PersonMask, WeeklyRoleMask},
     },
     types::{PersonIdx, Role, Slot, WeekIdx},
@@ -20,7 +20,7 @@ use crate::{
 
 pub struct WeekdaySolver<'a> {
     context: &'a Context,
-    parameters: &'a PhaseParameters,
+    parameters: &'a WeekdayParameters,
     sampler: PersonSampler,
     state: WeekdayState,
 }
@@ -72,7 +72,7 @@ impl TryFrom<Weekday> for FirstWeekdays {
 }
 
 impl WeekdaySolver<'_> {
-    pub fn new<'a>(parameters: &'a PhaseParameters, context: &'a Context) -> WeekdaySolver<'a> {
+    pub fn new<'a>(parameters: &'a WeekdayParameters, context: &'a Context) -> WeekdaySolver<'a> {
         WeekdaySolver {
             context,
             parameters,

@@ -23,8 +23,8 @@ impl SolutionStorage {
         }
     }
 
-    pub fn add(&mut self, fitness: f32, schedule: DraftSchedule) -> bool {
-        self.insert(fitness, schedule.iter_slots())
+    pub fn add_draft(&mut self, fitness: f32, schedule: DraftSchedule) -> bool {
+        self.add_slots(fitness, schedule.iter_slots())
     }
 
     /// Merge another SolutionStorage into this one, keeping the best solutions
@@ -32,14 +32,14 @@ impl SolutionStorage {
         for &(fitness, slot_idx) in other.index.iter() {
             let slots = other.slots[slot_idx as usize].iter().copied();
 
-            if !self.insert(fitness, slots) {
+            if !self.add_slots(fitness, slots) {
                 break;
             }
         }
     }
 
     /// Insert a solution with the given fitness and slot iterator
-    fn insert(&mut self, fitness: f32, slots: impl Iterator<Item = Slot>) -> bool {
+    pub fn add_slots(&mut self, fitness: f32, slots: impl Iterator<Item = Slot>) -> bool {
         let capacity = self.index.capacity();
         let length = self.index.len();
 
