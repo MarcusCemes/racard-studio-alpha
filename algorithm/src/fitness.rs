@@ -167,7 +167,14 @@ impl ScheduleEvaluator<'_> {
             .into_iter()
             .sum();
 
-        let annual = annual_delta.iter().map(|d| d.abs()).sum::<f32>();
+        // RMS of annual deltas across all people
+        let annual = (self.n_people as f32
+            * annual_delta[..self.n_people]
+                .iter()
+                .map(|d| d * d)
+                .sum::<f32>())
+        .sqrt();
+
         (weekly, annual, blank_weeks)
     }
 

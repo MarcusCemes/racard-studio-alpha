@@ -55,9 +55,9 @@ class AppState {
     refinerParams = $state<RefinementParameters>({
         cooling_rate: 0.9995,
         initial_temperature: 20,
-        num_iterations: 50000,
+        num_iterations: 25000,
         polish: true,
-        searches: 100,
+        searches: 20,
     });
 
     weights = $state<FitnessWeights>({
@@ -70,7 +70,7 @@ class AppState {
         weekly_hours: 2,
     });
 
-    topK = $state(20);
+    topK = $state(64);
 
     // --- Interaction states ---
     activeMode = $state<ActiveMode>("select");
